@@ -1,0 +1,5 @@
+harurobo_can_monitor:
+  ros__parameters:
+    interface: can0
+    enable_fd: false  # Select only once the hardware/link format is confirmed.
+    traffic_timeout_ms: 100  # Generic traffic only; not motor feedback validation.

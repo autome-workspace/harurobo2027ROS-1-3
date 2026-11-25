@@ -1,0 +1,21 @@
+game_controller:
+  ros__parameters:
+    device_id: 0
+    deadzone: 0.0  # Teleop applies its own radial deadzone.
+    autorepeat_rate: 50.0
+    sticky_buttons: false
+    coalesce_interval_ms: 1
+harurobo_teleop:
+  ros__parameters:
+    axis_vx: 1  # SDL LEFTY, ROS joy inverts SDL stick axes
+    axis_vy: 0  # SDL LEFTX
+    axis_wz: 2  # SDL RIGHTX
+    deadman_button: 9  # SDL LEFTSHOULDER
+    sign_vx: 1
+    sign_vy: 1
+    sign_wz: 1
+    deadzone: 0.08
+    yaw_deadzone: 0.12  # Suppress measured right-stick neutral noise independently.
+    max_linear_mps: 0.25
+    max_angular_radps: 0.5
+    joy_timeout_ms: 150

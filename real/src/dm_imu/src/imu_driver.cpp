@@ -1,0 +1,540 @@
+#include <cstdint>
+#include <algorithm>
+#include <cstring>
+#include "dm_imu/imu_driver.h"
+#include "std_msgs/msg/float64_multi_array.hpp"
+#include "sensor_msgs/msg/imu.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include <tf2/LinearMath/Quaternion.h>
+#include <rclcpp/rclcpp.hpp>
+#include <memory>
+#include <chrono>
+#include <thread>
+#include <tf2_ros/transform_broadcaster.h>
+
+
+namespace dmbot_serial {
+
+// 构造函数实现
+DmImu::DmImu(rclcpp::Node::SharedPtr node)
+    : node_(node), imu_msgs(std::make_unique<sensor_msgs::msg::Imu>())
+{
+    // 获取参数
+    node->declare_parameter("port", "/dev/ttyACM0");
+    node->declare_parameter("baud", 921600);
+
+    // 声明默认值并读取
+    node->declare_parameter("imu.roll_offset", 0.0);
+    node->declare_parameter("imu.pitch_offset", 0.0);
+    node->declare_parameter("imu.yaw_offset", 0.0);
+    node->declare_parameter("imu.calibrate_on_startup", true);
+    node->declare_parameter("imu.calibration_samples", 100);
+    node->declare_parameter("imu.calibration_timeout_ms", 5000);
+    node->declare_parameter("imu.publish_pose", false);
+
+    node->get_parameter("imu.roll_offset", roll_offset);
+    node->get_parameter("imu.pitch_offset", pitch_offset);
+    node->get_parameter("imu.yaw_offset", yaw_offset);
+    node->get_parameter("imu.calibrate_on_startup", calibrate_on_startup_);
+    node->get_parameter("imu.calibration_samples", calibration_samples_);
+    node->get_parameter("imu.calibration_timeout_ms", calibration_timeout_ms_);
+    node->get_parameter("imu.publish_pose", publish_pose_);
+
+    
+    imu_serial_port = node->get_parameter("port").as_string();
+    imu_seial_baud = node->get_parameter("baud").as_int();
+
+    imu_msgs->header.frame_id = "imu_link";
+
+    init_imu_serial();
+
+    // 初始化发布器
+    imu_pub_ = node->create_publisher<sensor_msgs::msg::Imu>("imu/data", 10);
+    imu_pose_pub_ = node->create_publisher<geometry_msgs::msg::PoseStamped>("pose", 10);
+    euler2_pub_ = node->create_publisher<std_msgs::msg::Float64MultiArray>("dm/imu", 9);
+
+    transform_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(node);
+
+    // 注册参数回调，实现动态更新
+    parameter_callback_handle_ = node->add_on_set_parameters_callback(
+        [this](const std::vector<rclcpp::Parameter> &parameters) {
+            return this->on_parameter_change(parameters);
+        }
+    );
+
+    // 创建校准服务
+    calibrate_service_ = node->create_service<dm_imu::srv::CalibrateIMU>(
+        "calibrate_imu",
+        [this](const std::shared_ptr<dm_imu::srv::CalibrateIMU::Request> request,
+               std::shared_ptr<dm_imu::srv::CalibrateIMU::Response> response) {
+            this->on_calibrate_imu(request, response);
+        }
+    );
+
+    if (node->declare_parameter("imu.configure_device", false)) {
+        // 进入设置模式
+        enter_setting_mode();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        // 配置传感器
+        turn_on_accel();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        turn_on_gyro();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        turn_on_euler();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        turn_off_quat();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        set_output_1000HZ();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        save_imu_para();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        exit_setting_mode();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+    }
+
+    // 启动数据读取线程
+    rec_thread = std::thread(&DmImu::get_imu_data_thread, this);
+
+    if (calibrate_on_startup_) {
+        RCLCPP_INFO(node_->get_logger(), "IMU Initialization Complete. Starting calibration with %d samples (timeout: %dms)...", 
+                    calibration_samples_, calibration_timeout_ms_);
+    } else {
+        RCLCPP_INFO(node_->get_logger(), "IMU Initialization Complete");
+    }
+}
+
+// 析构函数实现
+DmImu::~DmImu()
+{
+    RCLCPP_DEBUG(node_->get_logger(), "Entering ~DmImu()");
+    stop_thread_ = true;
+    if (rec_thread.joinable()) {
+        rec_thread.join();
+    }
+    if (serial_imu.isOpen()) {
+        serial_imu.close();
+    }
+}
+
+// 初始化串口实现
+void DmImu::init_imu_serial()
+{
+    serial_imu.setPort(imu_serial_port);
+    serial_imu.setBaudrate(imu_seial_baud);
+    auto timeout = serial::Timeout::simpleTimeout(20);
+    serial_imu.setTimeout(timeout);
+    serial_imu.open();
+    RCLCPP_INFO(node_->get_logger(), "Opened %s @ %d baud",
+                imu_serial_port.c_str(), imu_seial_baud);
+}
+
+namespace {
+constexpr std::array<uint8_t, 3> header{0x55, 0xaa, 0x01};
+
+float decode_float(const uint8_t *bytes)
+{
+    const uint32_t bits = uint32_t(bytes[0]) | (uint32_t(bytes[1]) << 8) |
+                          (uint32_t(bytes[2]) << 16) | (uint32_t(bytes[3]) << 24);
+    float value;
+    static_assert(sizeof(value) == sizeof(bits));
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+}
+
+void DmImu::get_imu_data_thread()
+{
+    using Clock = std::chrono::steady_clock;
+    const auto deadline = Clock::now() + std::chrono::milliseconds(calibration_timeout_ms_);
+    bool calibrating = calibrate_on_startup_;
+    std::array<double, 3> sums{};
+    int samples = 0;
+    std::array<uint8_t, 256> chunk;
+    std::vector<uint8_t> buffer;
+    buffer.reserve(chunk.size() + 22);
+    bool fresh_accel = false, fresh_gyro = false;
+    auto last_publish = Clock::now();
+
+    const auto finish_calibration = [&] {
+        if (samples > 0) {
+            std::lock_guard<std::mutex> lock(data_mutex_);
+            roll_offset = -sums[0] / samples;
+            pitch_offset = -sums[1] / samples;
+            yaw_offset = -sums[2] / samples;
+        }
+        if (samples < calibration_samples_) {
+            RCLCPP_WARN(node_->get_logger(), "Calibration timed out after %d valid Euler samples", samples);
+        } else {
+            RCLCPP_INFO(node_->get_logger(), "Calibration completed with %d samples", samples);
+        }
+        calibrating = false;
+    };
+
+    while (rclcpp::ok() && !stop_thread_) {
+        if (calibrating && Clock::now() >= deadline) {
+            finish_calibration();
+        }
+        try {
+            if (!serial_imu.isOpen()) {
+                init_imu_serial();
+            }
+            const auto requested = chunk.size();
+            const auto count = serial_imu.read(chunk.data(), requested);
+            RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                                  "Serial read: %zu of %zu bytes", count, requested);
+            buffer.insert(buffer.end(), chunk.begin(), chunk.begin() + count);
+            size_t cursor = 0;
+            while (buffer.size() - cursor >= 4) {
+                auto *frame = buffer.data() + cursor;
+                const uint8_t reg = frame[3];
+                if (!std::equal(header.begin(), header.end(), frame) || reg < 1 || reg > 4) {
+                    ++cursor;
+                    fresh_accel = fresh_gyro = false;
+                    continue;
+                }
+                // Registers 1-3 contain three floats; register 4 contains four.
+                const size_t crc_offset = reg == 4 ? 20 : 16;
+                const size_t length = crc_offset + 3;
+                if (buffer.size() - cursor < length) {
+                    break;
+                }
+                const uint16_t expected = frame[crc_offset] | (uint16_t(frame[crc_offset + 1]) << 8);
+                const uint16_t actual = Get_CRC16(frame, crc_offset);
+                if (actual != expected || frame[length - 1] != 0x0a) {
+                    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                                         "Invalid frame reg=%u CRC calculated=%04x received=%04x tail=%02x",
+                                         reg, actual, expected, frame[length - 1]);
+                    ++cursor;
+                    fresh_accel = fresh_gyro = false;
+                    continue;
+                }
+                RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                                      "Valid frame reg=%u length=%zu CRC=%04x", reg, length, actual);
+                cursor += length;
+                if (reg == 4) {
+                    continue;
+                }
+                const float x = decode_float(frame + 4);
+                const float y = decode_float(frame + 8);
+                const float z = decode_float(frame + 12);
+                if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) {
+                    fresh_accel = fresh_gyro = false;
+                    continue;
+                }
+                if (reg == 1) {
+                    data.accx = x;
+                    data.accy = y;
+                    data.accz = z;
+                    fresh_accel = true;
+                    fresh_gyro = false;
+                } else if (reg == 2) {
+                    data.gyrox = x;
+                    data.gyroy = y;
+                    data.gyroz = z;
+                    fresh_gyro = true;
+                } else {
+                    {
+                        std::lock_guard<std::mutex> lock(data_mutex_);
+                        data.roll = x;
+                        data.pitch = y;
+                        data.yaw = z;
+                        have_euler_ = true;
+                    }
+                    if (calibrating) {
+                        sums[0] += x;
+                        sums[1] += y;
+                        sums[2] += z;
+                        if (++samples >= calibration_samples_) {
+                            finish_calibration();
+                        }
+                    }
+                    if (!calibrating && fresh_accel && fresh_gyro) {
+                        publish_imu_data();
+                        last_publish = Clock::now();
+                    }
+                    fresh_accel = fresh_gyro = false;
+                }
+            }
+            buffer.erase(buffer.begin(), buffer.begin() + cursor);
+            if (count == 0) {
+                fresh_accel = fresh_gyro = false;
+            }
+            if (!calibrating && Clock::now() - last_publish >= std::chrono::seconds(1)) {
+                RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                                     "Timed out waiting for a complete IMU sample; last read: %zu bytes", count);
+            }
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+                                  "IMU receive error on %s: %s", imu_serial_port.c_str(), e.what());
+            if (serial_imu.isOpen()) {
+                serial_imu.close();
+            }
+            buffer.clear();
+            fresh_accel = fresh_gyro = false;
+            {
+                std::lock_guard<std::mutex> lock(data_mutex_);
+                have_euler_ = false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+    }
+}
+
+
+void DmImu::publish_imu_data()
+{
+    std::lock_guard<std::mutex> lock(data_mutex_);
+
+    RCLCPP_DEBUG_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000, "Publishing IMU data");
+    auto now = node_->get_clock()->now();
+
+    auto imu_msg = std::make_unique<sensor_msgs::msg::Imu>();
+    if (!imu_msg) {
+        RCLCPP_ERROR(node_->get_logger(), "Failed to allocate imu_msg");
+        return;
+    }
+
+    imu_msg->header.stamp = now;
+    imu_msg->header.frame_id = "imu_link";
+
+    tf2::Quaternion q;
+    try {
+        // Apply RPY offsets (parameters are expected in degrees)
+        double roll = data.roll + roll_offset;
+        double pitch = data.pitch + pitch_offset;
+        double yaw = data.yaw + yaw_offset;
+
+        q.setRPY(
+            roll * M_PI / 180.0,
+            pitch * M_PI / 180.0,
+            yaw * M_PI / 180.0
+        );
+
+    } catch (const tf2::InvalidArgumentException& e) {
+        RCLCPP_ERROR(node_->get_logger(), "Invalid Euler angles: roll=%.2f, pitch=%.2f, yaw=%.2f", 
+                    data.roll, data.pitch, data.yaw);
+        return;
+    }
+
+    imu_msg->orientation = tf2::toMsg(q);
+
+    imu_msg->angular_velocity.x = data.gyrox;
+    imu_msg->angular_velocity.y = data.gyroy;
+    imu_msg->angular_velocity.z = data.gyroz;
+
+    imu_msg->linear_acceleration.x = data.accx;
+    imu_msg->linear_acceleration.y = data.accy;
+    imu_msg->linear_acceleration.z = data.accz;
+
+    auto header = imu_msg->header;  // 保存 header 副本
+    auto orientation = imu_msg->orientation;
+    imu_pub_->publish(std::move(imu_msg));  // imu_msg 被 move 后不能再使用
+
+    std_msgs::msg::Float64MultiArray readings;
+    // Acceleration (m/s²), angular velocity (rad/s), corrected RPY (degrees).
+    readings.data = {data.accx, data.accy, data.accz, data.gyrox, data.gyroy, data.gyroz,
+                     data.roll + roll_offset, data.pitch + pitch_offset, data.yaw + yaw_offset};
+    euler2_pub_->publish(readings);
+
+    // 发布 PoseStamped（可配置）
+    if (publish_pose_ && imu_pose_pub_) {
+        auto pose_msg = std::make_unique<geometry_msgs::msg::PoseStamped>();
+        if (!pose_msg) {
+            RCLCPP_ERROR(node_->get_logger(), "Failed to allocate pose_msg");
+            return;
+        }
+        pose_msg->header = header;
+        pose_msg->header.frame_id = "map";
+        pose_msg->pose.orientation = orientation;
+        pose_msg->pose.position.x = 0.0;
+        pose_msg->pose.position.y = 0.0;
+        pose_msg->pose.position.z = 0.0;
+        imu_pose_pub_->publish(std::move(pose_msg));
+    }
+
+    geometry_msgs::msg::TransformStamped tfs;
+    tfs.header.stamp = now;
+    tfs.header.frame_id = "map";      // 父坐标系
+    tfs.child_frame_id = "imu_link";        // 子坐标系
+    tfs.transform.rotation = orientation;
+
+    // 如果 IMU 安装位置有偏移，可在这里添加平移
+    tfs.transform.translation.x = 0.0;
+    tfs.transform.translation.y = 0.0;
+    tfs.transform.translation.z = 0.0;
+
+    if (transform_broadcaster_) {
+        transform_broadcaster_->sendTransform(tfs);
+    } else {
+        RCLCPP_WARN(node_->get_logger(), "Transform broadcaster not initialized.");
+    }
+
+}
+
+// 以下是私有方法实现
+void DmImu::enter_setting_mode()
+{
+    // 发送进入设置模式的命令
+    const uint8_t txbuf[4] = {0xAA, 0x06, 0x01, 0x0D};
+    try {
+        for(int i=0;i<5;i++){
+          if (serial_imu.isOpen()) {
+              serial_imu.write(txbuf, sizeof(txbuf));
+          }
+          rclcpp::sleep_for(std::chrono::milliseconds(10));
+        }
+    } catch (const serial::IOException& e) {
+        RCLCPP_ERROR(node_->get_logger(), "Failed to enter setting mode: %s", e.what());
+    }
+}
+
+void DmImu::turn_on_accel()
+{
+    // 发送开启加速度计的命令
+    const uint8_t txbuf[4] = {0xAA, 0x01, 0x14, 0x0D};
+    for(int i=0;i<5;i++)
+    {
+      serial_imu.write(txbuf,sizeof(txbuf));
+      rclcpp::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+void DmImu::turn_on_gyro()
+{
+    // 发送开启陀螺仪的命令
+    const uint8_t txbuf[] = {0xAA, 0x01, 0x15, 0x0D};
+    for(int i=0;i<5;i++)
+    {
+      serial_imu.write(txbuf,sizeof(txbuf));
+      rclcpp::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+void DmImu::turn_on_euler()
+{
+    // 发送开启欧拉角的命令
+    const uint8_t txbuf[4] = {0xAA, 0x01, 0x16, 0x0D};
+    for(int i=0;i<5;i++)
+    {
+      serial_imu.write(txbuf,sizeof(txbuf));
+      rclcpp::sleep_for(std::chrono::milliseconds(10));
+    }
+}
+
+void DmImu::turn_off_quat()
+{
+    // 发送关闭四元数的命令
+  const uint8_t txbuf[4]={0xAA,0x01,0x07,0x0D};
+  for(int i=0;i<5;i++)
+  {
+    serial_imu.write(txbuf,sizeof(txbuf));
+    rclcpp::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+void DmImu::set_output_1000HZ()
+{
+    // 设置输出频率为1000Hz
+  const uint8_t txbuf[5]={0xAA, 0x02, 0x01, 0x00, 0x0D};
+  for(int i=0;i<5;i++)
+  {
+    serial_imu.write(txbuf,sizeof(txbuf));
+    rclcpp::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+void DmImu::save_imu_para()
+{
+    // 保存参数
+  const uint8_t txbuf[4]={0xAA, 0x03, 0x01, 0x0D};
+  for(int i=0;i<5;i++)
+  {
+    serial_imu.write(txbuf,sizeof(txbuf));
+    rclcpp::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+void DmImu::exit_setting_mode()
+{
+    // 退出设置模式
+  const uint8_t txbuf[4]={0xAA, 0x06, 0x00, 0x0D};
+  for(int i=0;i<5;i++)
+  {
+    serial_imu.write(txbuf,sizeof(txbuf));
+    rclcpp::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+void DmImu::restart_imu()
+{
+    // 重启IMU
+  const uint8_t txbuf[4]={0xAA, 0x00, 0x00, 0x0D};
+  for(int i=0;i<5;i++)
+  {
+    serial_imu.write(txbuf,sizeof(txbuf));
+    rclcpp::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+rcl_interfaces::msg::SetParametersResult DmImu::on_parameter_change(
+    const std::vector<rclcpp::Parameter> &parameters)
+{
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+    result.reason = "";
+
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    for (const auto &param : parameters) {
+        if (param.get_name() == "imu.roll_offset") {
+            roll_offset = param.as_double();
+            RCLCPP_INFO(node_->get_logger(), "Updated roll_offset to: %.3f", roll_offset);
+        } else if (param.get_name() == "imu.pitch_offset") {
+            pitch_offset = param.as_double();
+            RCLCPP_INFO(node_->get_logger(), "Updated pitch_offset to: %.3f", pitch_offset);
+        } else if (param.get_name() == "imu.yaw_offset") {
+            yaw_offset = param.as_double();
+            RCLCPP_INFO(node_->get_logger(), "Updated yaw_offset to: %.3f", yaw_offset);
+        }
+    }
+
+    return result;
+}
+
+void DmImu::on_calibrate_imu(
+    const std::shared_ptr<dm_imu::srv::CalibrateIMU::Request> request,
+    std::shared_ptr<dm_imu::srv::CalibrateIMU::Response> response)
+{
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    if (!have_euler_) {
+        response->success = false;
+        response->message = "No valid Euler frame received";
+        return;
+    }
+
+    // 获取当前 IMU 数据的 RPY
+    double current_roll = data.roll;
+    double current_pitch = data.pitch;
+    double current_yaw = data.yaw;
+
+    // 设置 offset 使得输出的 RPY 都变为 0
+    roll_offset = -current_roll;
+    pitch_offset = -current_pitch;
+    yaw_offset = -current_yaw;
+
+    RCLCPP_INFO(node_->get_logger(), 
+        "IMU Calibrated: roll_offset=%.3f, pitch_offset=%.3f, yaw_offset=%.3f",
+        roll_offset, pitch_offset, yaw_offset);
+
+    response->success = true;
+    response->message = "IMU calibration completed successfully";
+}
+
+} // namespace dmbot_serial

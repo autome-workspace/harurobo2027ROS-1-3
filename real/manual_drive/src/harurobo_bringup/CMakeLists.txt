@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(harurobo_bringup)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS gui/robot_status_gui.py DESTINATION lib/${PROJECT_NAME})
+ament_package()

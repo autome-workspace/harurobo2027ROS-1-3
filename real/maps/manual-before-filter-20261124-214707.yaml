@@ -1,0 +1,7 @@
+image: manual-before-filter-20261124-214707.pgm
+mode: trinary
+resolution: 0.050000001
+origin: [-11.582922390425258, -3.6573975635174882, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25

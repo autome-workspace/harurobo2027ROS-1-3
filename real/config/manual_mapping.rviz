@@ -1,0 +1,43 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+  Displays:
+    - Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: Map
+      Topic:
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+        Value: /map
+      Value: true
+    - Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Name: LiDAR
+      Size (m): 0.025
+      Style: Points
+      Color Transformer: FlatColor
+      Color: 0; 170; 255
+      Topic:
+        Reliability Policy: Best Effort
+        Value: /scan_filtered
+      Value: true
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Name: Vehicle
+      Reference Frame: base_link
+      Length: 0.3
+      Radius: 0.025
+      Value: true
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 90

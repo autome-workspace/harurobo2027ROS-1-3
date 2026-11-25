@@ -1,3 +1,13 @@
-/build
-/log
-/install
+/build/
+/install/
+/log/
+/src
+/config
+/maps
+/tools
+/sh
+build/
+install/
+log/
+__pycache__/
+*.py[cod]

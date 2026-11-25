@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>harurobo_bringup</name><version>0.1.0</version>
+  <description>Spring robot non-driving preview bringup.</description>
+  <maintainer email="kaboc@localhost.localdomain">kaboc</maintainer>
+  <license>UNLICENSED</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend><exec_depend>launch_ros</exec_depend>
+  <exec_depend>joy</exec_depend><exec_depend>harurobo_teleop</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

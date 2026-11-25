@@ -1,0 +1,25 @@
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Enabled: true
+      Name: Grid
+      Cell Size: 0.25
+      Plane Cell Count: 10
+    - Class: rviz_default_plugins/Axes
+      Enabled: true
+      Name: Encoder shaft
+      Reference Frame: encoder_shaft
+      Length: 0.55
+      Radius: 0.025
+  Global Options:
+    Fixed Frame: encoder_base
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 2.5
+      Pitch: 0.8
+      Yaw: 0.8
+Window Geometry:
+  Width: 900
+  Height: 700
