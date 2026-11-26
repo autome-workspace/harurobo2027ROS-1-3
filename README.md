@@ -4,7 +4,7 @@
 
 | フォルダ | 内容 |
 | --- | --- |
-| [real/](real/) | 実機の IMU、LiDAR、地図作成、コントローラー操作 |
+| [real/](real/) | 実機の IMU、LiDAR、地図作成、コントローラー操作、[ボール自動接近](real/src/ball_auto_approach/README.md) |
 | [simulation/](simulation/) | シミュレーション用。現在は未着手 |
 | [docs/](docs/) | [PC セットアップ](docs/setup.md)と[実機の引き継ぎ](docs/handover.md) |
 

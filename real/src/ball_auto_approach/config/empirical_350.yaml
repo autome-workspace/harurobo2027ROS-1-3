@@ -1,0 +1,91 @@
+# C270 + LD03, 60 mm ball. Stationary calibration yaw: -3.139535756772215 rad.
+# Safety settings are disabled until the vehicle footprint is verified.
+game_controller:
+  ros__parameters:
+    device_id: 0
+    deadzone: 0.0
+    autorepeat_rate: 50.0
+    sticky_buttons: false
+    coalesce_interval_ms: 1
+ball_localizer:
+  ros__parameters:
+    base_frame: ball_test_base
+    ball_radius: 0.03
+    ball_center_z: 0.0
+    max_stamp_skew: 0.13
+    scan_stamp_is_end: true
+    cluster_gap: 0.035
+    max_missing_bins: 2
+    min_points: 4
+    fit_error: 0.009
+    angular_gate: 0.07
+    size_ratio_limit: 1.6
+    max_range: 2.0
+    association_mode: empirical
+    empirical_limits:
+    - -0.099134366466749
+    - 0.08221969222358605
+    - 0.3291408294345717
+    - 0.4564
+    empirical_coefficients:
+    - 408.92361980862364
+    - -899.379314798175
+    - -26.796479386830924
+    - -148.71005309285215
+    - -32.0571266132209
+    - 98.97846812733322
+    - 30.77232613375601
+    - -25.548853529597885
+    - 40.89199643914361
+    empirical_pixel_error:
+    - 12.0
+    - 21.0
+    - 16.0
+approach_controller:
+  ros__parameters:
+    rate: 20.0
+    target_distance: 0.35
+    distance_tolerance: 0.01
+    lateral_tolerance: 0.01
+    hold_time: 0.5
+    max_vx: 0.15
+    max_vy: 0.1
+    kp_x: 1.0
+    kp_y: 1.0
+    sensor_timeout: 0.3
+    joy_timeout: 0.15
+    approach_timeout: 12.0
+    camera_align_enabled: true
+    camera_align_model:
+    - 408.92361980862364
+    - -899.379314798175
+    - -26.796479386830924
+    - -148.71005309285215
+    - -32.0571266132209
+    - 98.97846812733322
+    - 30.77232613375601
+    - -25.548853529597885
+    - 40.89199643914361
+    camera_align_timeout: 4.0
+    camera_align_max_speed: 0.03
+    camera_align_tolerance: 0.012
+    camera_align_settle_time: 0.2
+    detection_timeout: 1.0
+    align_gate: 0.04
+    axis_x: 1
+    axis_y: 0
+    axis_yaw: 2
+    deadman_button: 9
+    start_button: 3
+    cancel_button: 1
+    deadzone: 0.12
+    override_threshold: 0.2
+    manual_linear: 0.15
+    manual_angular: 0.5
+    half_length: 0.15
+    half_width: 0.15
+    obstacle_margin: 0.025
+    validated_min_range: 0.0
+    auto_enabled: false
+    base_frame: ball_test_base
+    association_mode: empirical

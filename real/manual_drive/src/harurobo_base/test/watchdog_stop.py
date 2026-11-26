@@ -47,7 +47,7 @@ def run():
     print('WATCHDOG: waiting for the first heartbeat on UDP 55901', flush=True)
     while True:
         try:
-            data, _ = listener.recv(64)
+            data = listener.recv(64)
         except TimeoutError:
             data = b''
         now = time.monotonic()

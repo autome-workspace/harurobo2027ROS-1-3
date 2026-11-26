@@ -229,9 +229,48 @@ class DpadDrive:
                 self.finish(f'aborted: {error}')
 
 
-def run():
+class TwistDrive:
+    """Use the same calibrated wheel mixer and require fresh mux commands."""
+
+    TIMEOUT = .15
+    MAX_LINEAR = .25
+    MAX_YAW = .5
+
+    def __init__(self, gate):
+        self.gate = gate
+        self.last = None
+        self.wheels = (0.,) * 4
+
+    def on_joy(self, axes, buttons, now):
+        self.gate.update(axes, buttons, now)
+
+    def on_twist(self, message, now):
+        v, w = message.linear, message.angular
+        if (not all(math.isfinite(value) for value in (v.x, v.y, w.z))
+                or v.z != 0 or w.x != 0 or w.y != 0
+                or max(abs(v.x), abs(v.y)) > self.MAX_LINEAR or abs(w.z) > self.MAX_YAW):
+            self.last = None
+            self.gate.stop()
+            return
+        self.last = now
+        self.wheels = mix(v.x / (FORWARD_METRES_PER_RAD * WHEEL_CAP),
+                          v.y / (LEFT_METRES_PER_RAD * WHEEL_CAP), w.z / WHEEL_CAP)
+
+    def command(self, now):
+        if self.last is None or now - self.last >= self.TIMEOUT:
+            if self.gate.armed_at is not None:
+                self.gate.stop()
+            return (0.,) * 4
+        return self.wheels
+
+    def observe(self, wheels, now):
+        pass
+
+
+def run(use_twist=False):
     import rclpy
     from rclpy.executors import SingleThreadedExecutor
+    from geometry_msgs.msg import Twist
     from sensor_msgs.msg import Imu, Joy
     from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 
@@ -239,16 +278,21 @@ def run():
     rclpy.init()
     node = rclpy.create_node('harurobo_manual_drive')
     gate = FourContinuous()
-    dpad = DpadDrive(gate)
+    drive = TwistDrive(gate) if use_twist else DpadDrive(gate)
     node.create_subscription(Joy, '/joy',
-                             lambda msg: dpad.on_joy(msg.axes, msg.buttons, time.monotonic()),
+                             lambda msg: drive.on_joy(msg.axes, msg.buttons, time.monotonic()),
                              qos_profile_sensor_data)
-    # Poll IMU independently so ready Joy callbacks cannot starve it.
-    imu_node = rclpy.create_node('harurobo_manual_drive_imu')
-    imu_executor = SingleThreadedExecutor()
-    imu_executor.add_node(imu_node)
-    imu_node.create_subscription(Imu, '/imu/data', lambda msg: dpad.on_imu(msg, time.monotonic()),
-                             QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
+    imu_node = imu_executor = None
+    if use_twist:
+        node.create_subscription(Twist, '/cmd_vel',
+                                 lambda msg: drive.on_twist(msg, time.monotonic()), 1)
+    else:
+        # Poll IMU independently so ready Joy callbacks cannot starve it.
+        imu_node = rclpy.create_node('harurobo_manual_drive_imu')
+        imu_executor = SingleThreadedExecutor()
+        imu_executor.add_node(imu_node)
+        imu_node.create_subscription(Imu, '/imu/data', lambda msg: drive.on_imu(msg, time.monotonic()),
+                                     QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT))
     enabled = False
     with socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW) as can:
         can.setsockopt(socket.SOL_CAN_RAW, CAN_RAW_ERR_FILTER, struct.pack('=I', CAN_ERR_MASK))
@@ -268,16 +312,18 @@ def run():
                 if vmax != 200.:
                     raise RuntimeError(f'motor {motor}: VMAX mismatch')
             print(f'READY: continuous drive. L1=deadman, release to stop. '
-                  f'Neutral+release to re-arm. Cap {WHEEL_CAP} rad/s. '
-                  f'Neutral L1 release/press to start; D-pad moves 1 m with IMU.', flush=True)
+                  f'Neutral+release to re-arm. Cap {WHEEL_CAP} rad/s. ' +
+                  ('Waiting for /cmd_vel.' if use_twist else
+                   'Neutral L1 release/press to start; D-pad moves 1 m with IMU.'), flush=True)
             previous = None
             while rclpy.ok():
                 rclpy.spin_once(node, timeout_sec=.005)
-                imu_executor.spin_once(timeout_sec=.002)
+                if imu_executor is not None:
+                    imu_executor.spin_once(timeout_sec=.002)
                 watchdog_heartbeat()
                 gate.expire(time.monotonic())
-                if enabled:
-                    values = dpad.command(time.monotonic())
+                if enabled or use_twist:
+                    values = drive.command(time.monotonic())
                 if gate.armed_at is None and enabled:
                     watchdog_heartbeat()
                     stop_immediately(can)
@@ -289,6 +335,9 @@ def run():
                     if not enabled:
                         confirm_disabled_rest(can, heartbeat=watchdog_heartbeat)
                         gate.expire(time.monotonic())
+                        if use_twist:
+                            rclpy.spin_once(node, timeout_sec=0.)
+                            drive.command(time.monotonic())
                         if gate.armed_at is None:
                             continue
                         drain_pending(can)
@@ -300,11 +349,11 @@ def run():
                             send(can, motor, enable=True)
                         collect(can, 1)
                         enabled = True
-                        continue
                         print('ENABLED: continuous; L1 is the deadman', flush=True)
+                        continue
                     watchdog_heartbeat()
                     speeds(can, values)
-                    dpad.observe(collect(can, 1), time.monotonic())
+                    drive.observe(collect(can, 1), time.monotonic())
                     bucket = tuple(round(v / .05) for v in values)
                     if bucket != previous:
                         print(f't={time.monotonic():.3f} '
@@ -319,8 +368,9 @@ def run():
                     except OSError as error:
                         print(f'STOP SEND FAILED {motor}: {error}', flush=True)
             watchdog_done()
-            imu_executor.shutdown()
-            imu_node.destroy_node()
+            if imu_executor is not None:
+                imu_executor.shutdown()
+                imu_node.destroy_node()
             node.destroy_node()
             if rclpy.ok():
                 rclpy.shutdown()
@@ -330,10 +380,11 @@ def run():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute-powered-robot-estop-ready', action='store_true')
+    parser.add_argument('--twist', action='store_true', help='use /cmd_vel with the L1 interlock')
     args = parser.parse_args()
     try:
         if args.execute_powered_robot_estop_ready:
-            run()
+            run(use_twist=args.twist)
         else:
             gate = FourContinuous()
             assert gate.PERMIT == float('inf')

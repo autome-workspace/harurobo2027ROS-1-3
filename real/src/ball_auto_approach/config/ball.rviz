@@ -1,0 +1,32 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Global Options:
+    Fixed Frame: base_link
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+    - Class: rviz_default_plugins/LaserScan
+      Name: LD03
+      Enabled: true
+      Size (m): 0.015
+      Topic:
+        Value: /scan
+        Reliability Policy: Best Effort
+    - Class: rviz_default_plugins/Marker
+      Name: Ball
+      Enabled: true
+      Topic:
+        Value: /ball/marker
+    - Class: rviz_default_plugins/Image
+      Name: HSV detection
+      Enabled: true
+      Topic:
+        Value: /ball/debug_image
+        Reliability Policy: Best Effort
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 2.0
