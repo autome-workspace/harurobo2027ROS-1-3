@@ -1,0 +1,679 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="kanto_2027">
+    <physics name="default" type="dart">
+      <max_step_size>0.005</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <light name="sun" type="directional">
+      <pose>0 0 8 0 0 0</pose>
+      <diffuse>0.85 0.85 0.85 1</diffuse>
+      <direction>-0.4 0.2 -1</direction>
+    </light>
+    <!-- Layout dimensions from the official 2027 field drawing. -->
+    <model name="competition_field">
+      <static>true</static>
+      <link name="field">
+        <collision name="floor"><pose>0.0000 0.0000 -0.0500 0 0 0</pose><geometry><box><size>7.0000 6.9240 0.1000</size></box></geometry></collision>
+        <visual name="floor">
+          <pose>0.0000 0.0000 -0.0500 0 0 0</pose>
+          <geometry><box><size>7.0000 6.9240 0.1000</size></box></geometry>
+          <material><ambient>0.15 0.38 0.16 1</ambient><diffuse>0.15 0.38 0.16 1</diffuse></material>
+        </visual>
+        <collision name="red_outer"><pose>-3.4810 0.0000 0.0445 0 0 0</pose><geometry><box><size>0.0380 6.8480 0.0890</size></box></geometry></collision>
+        <visual name="red_outer">
+          <pose>-3.4810 0.0000 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 6.8480 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="blue_outer"><pose>3.4810 0.0000 0.0445 0 0 0</pose><geometry><box><size>0.0380 6.8480 0.0890</size></box></geometry></collision>
+        <visual name="blue_outer">
+          <pose>3.4810 0.0000 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 6.8480 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="south_outer"><pose>0.0000 -3.4430 0.0445 0 0 0</pose><geometry><box><size>7.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="south_outer">
+          <pose>0.0000 -3.4430 0.0445 0 0 0</pose>
+          <geometry><box><size>7.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="north_outer"><pose>0.0000 3.4430 0.0445 0 0 0</pose><geometry><box><size>7.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="north_outer">
+          <pose>0.0000 3.4430 0.0445 0 0 0</pose>
+          <geometry><box><size>7.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_1_south"><pose>0.0000 -2.4430 0.0445 0 0 0</pose><geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="divider_1_south">
+          <pose>0.0000 -2.4430 0.0445 0 0 0</pose>
+          <geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_1_north"><pose>0.0000 -1.4810 0.0445 0 0 0</pose><geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="divider_1_north">
+          <pose>0.0000 -1.4810 0.0445 0 0 0</pose>
+          <geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_1_red"><pose>-1.5190 -1.9620 0.0445 0 0 0</pose><geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry></collision>
+        <visual name="divider_1_red">
+          <pose>-1.5190 -1.9620 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_1_blue"><pose>1.5190 -1.9620 0.0445 0 0 0</pose><geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry></collision>
+        <visual name="divider_1_blue">
+          <pose>1.5190 -1.9620 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_2_south"><pose>0.0000 -0.4810 0.0445 0 0 0</pose><geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="divider_2_south">
+          <pose>0.0000 -0.4810 0.0445 0 0 0</pose>
+          <geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_2_north"><pose>0.0000 0.4810 0.0445 0 0 0</pose><geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="divider_2_north">
+          <pose>0.0000 0.4810 0.0445 0 0 0</pose>
+          <geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_2_red"><pose>-1.5190 0.0000 0.0445 0 0 0</pose><geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry></collision>
+        <visual name="divider_2_red">
+          <pose>-1.5190 0.0000 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_2_blue"><pose>1.5190 0.0000 0.0445 0 0 0</pose><geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry></collision>
+        <visual name="divider_2_blue">
+          <pose>1.5190 0.0000 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_3_south"><pose>0.0000 1.4810 0.0445 0 0 0</pose><geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="divider_3_south">
+          <pose>0.0000 1.4810 0.0445 0 0 0</pose>
+          <geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_3_north"><pose>0.0000 2.4430 0.0445 0 0 0</pose><geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry></collision>
+        <visual name="divider_3_north">
+          <pose>0.0000 2.4430 0.0445 0 0 0</pose>
+          <geometry><box><size>3.0000 0.0380 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_3_red"><pose>-1.5190 1.9620 0.0445 0 0 0</pose><geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry></collision>
+        <visual name="divider_3_red">
+          <pose>-1.5190 1.9620 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <collision name="divider_3_blue"><pose>1.5190 1.9620 0.0445 0 0 0</pose><geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry></collision>
+        <visual name="divider_3_blue">
+          <pose>1.5190 1.9620 0.0445 0 0 0</pose>
+          <geometry><box><size>0.0380 1.0000 0.0890</size></box></geometry>
+          <material><ambient>0.50 0.30 0.15 1</ambient><diffuse>0.50 0.30 0.15 1</diffuse></material>
+        </visual>
+        <visual name="trench_1_line_1">
+          <pose>-1.5190 -2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_1_line_2">
+          <pose>-1.1190 -2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_1_line_3">
+          <pose>0.0000 -2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_1_line_4">
+          <pose>1.1190 -2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_1_line_5">
+          <pose>1.5190 -2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_2_line_1">
+          <pose>-1.5190 -0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_2_line_2">
+          <pose>-1.1190 -0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_2_line_3">
+          <pose>0.0000 -0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_2_line_4">
+          <pose>1.1190 -0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_2_line_5">
+          <pose>1.5190 -0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_3_line_1">
+          <pose>-1.5190 0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_3_line_2">
+          <pose>-1.1190 0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_3_line_3">
+          <pose>0.0000 0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_3_line_4">
+          <pose>1.1190 0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_3_line_5">
+          <pose>1.5190 0.9810 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_4_line_1">
+          <pose>-1.5190 2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_4_line_2">
+          <pose>-1.1190 2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_4_line_3">
+          <pose>0.0000 2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_4_line_4">
+          <pose>1.1190 2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="trench_4_line_5">
+          <pose>1.5190 2.9620 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.9430 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="red_start_horizontal_negative">
+          <pose>-3.1120 -0.3310 0.0005 0 0 0</pose>
+          <geometry><box><size>0.7000 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_start_vertical_negative">
+          <pose>-3.4430 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.6240 0.0010</size></box></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_start_horizontal_positive">
+          <pose>-3.1120 0.3310 0.0005 0 0 0</pose>
+          <geometry><box><size>0.7000 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_start_vertical_positive">
+          <pose>-2.7810 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.6240 0.0010</size></box></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_base_horizontal_negative">
+          <pose>-1.7130 -0.1560 0.0005 0 0 0</pose>
+          <geometry><box><size>0.3500 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="red_base_vertical_negative">
+          <pose>-1.8690 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.2740 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="red_base_horizontal_positive">
+          <pose>-1.7130 0.1560 0.0005 0 0 0</pose>
+          <geometry><box><size>0.3500 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="red_base_vertical_positive">
+          <pose>-1.5570 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.2740 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_1">
+          <pose>-3.3120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_1"><pose>-3.3120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_1">
+          <pose>-3.3120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_2">
+          <pose>-3.3120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_2"><pose>-3.3120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_2">
+          <pose>-3.3120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_3">
+          <pose>-3.0120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_3"><pose>-3.0120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_3">
+          <pose>-3.0120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_4">
+          <pose>-3.0120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_4"><pose>-3.0120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_4">
+          <pose>-3.0120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_5">
+          <pose>-2.7120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_5"><pose>-2.7120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_5">
+          <pose>-2.7120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_6">
+          <pose>-2.7120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_6"><pose>-2.7120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_6">
+          <pose>-2.7120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_7">
+          <pose>-2.4120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_7"><pose>-2.4120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_7">
+          <pose>-2.4120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_8">
+          <pose>-2.4120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_8"><pose>-2.4120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_8">
+          <pose>-2.4120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_9">
+          <pose>-2.4120 -0.4500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_9"><pose>-2.4120 -0.4500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_9">
+          <pose>-2.4120 -0.4500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_10">
+          <pose>-2.4120 -0.3000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_10"><pose>-2.4120 -0.3000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_10">
+          <pose>-2.4120 -0.3000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_11">
+          <pose>-2.4120 -0.1500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_11"><pose>-2.4120 -0.1500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_11">
+          <pose>-2.4120 -0.1500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_12">
+          <pose>-2.4120 0.0000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_12"><pose>-2.4120 0.0000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_12">
+          <pose>-2.4120 0.0000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_13">
+          <pose>-2.4120 0.1500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_13"><pose>-2.4120 0.1500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_13">
+          <pose>-2.4120 0.1500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_14">
+          <pose>-2.4120 0.3000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_14"><pose>-2.4120 0.3000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_14">
+          <pose>-2.4120 0.3000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="red_plant_15">
+          <pose>-2.4120 0.4500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="red_supply_15"><pose>-2.4120 0.4500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="red_supply_15">
+          <pose>-2.4120 0.4500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.78 0.06 0.08 1</ambient><diffuse>0.78 0.06 0.08 1</diffuse></material>
+        </visual>
+        <visual name="blue_start_horizontal_negative">
+          <pose>3.1120 -0.3310 0.0005 0 0 0</pose>
+          <geometry><box><size>0.7000 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_start_vertical_negative">
+          <pose>2.7810 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.6240 0.0010</size></box></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_start_horizontal_positive">
+          <pose>3.1120 0.3310 0.0005 0 0 0</pose>
+          <geometry><box><size>0.7000 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_start_vertical_positive">
+          <pose>3.4430 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.6240 0.0010</size></box></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_base_horizontal_negative">
+          <pose>1.7130 -0.1560 0.0005 0 0 0</pose>
+          <geometry><box><size>0.3500 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="blue_base_vertical_negative">
+          <pose>1.5570 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.2740 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="blue_base_horizontal_positive">
+          <pose>1.7130 0.1560 0.0005 0 0 0</pose>
+          <geometry><box><size>0.3500 0.0380 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="blue_base_vertical_positive">
+          <pose>1.8690 0.0000 0.0005 0 0 0</pose>
+          <geometry><box><size>0.0380 0.2740 0.0010</size></box></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_1">
+          <pose>3.3120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_1"><pose>3.3120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_1">
+          <pose>3.3120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_2">
+          <pose>3.3120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_2"><pose>3.3120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_2">
+          <pose>3.3120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_3">
+          <pose>3.0120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_3"><pose>3.0120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_3">
+          <pose>3.0120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_4">
+          <pose>3.0120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_4"><pose>3.0120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_4">
+          <pose>3.0120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_5">
+          <pose>2.7120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_5"><pose>2.7120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_5">
+          <pose>2.7120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_6">
+          <pose>2.7120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_6"><pose>2.7120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_6">
+          <pose>2.7120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_7">
+          <pose>2.4120 -0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_7"><pose>2.4120 -0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_7">
+          <pose>2.4120 -0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_8">
+          <pose>2.4120 0.6000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_8"><pose>2.4120 0.6000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_8">
+          <pose>2.4120 0.6000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_9">
+          <pose>2.4120 -0.4500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_9"><pose>2.4120 -0.4500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_9">
+          <pose>2.4120 -0.4500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_10">
+          <pose>2.4120 -0.3000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_10"><pose>2.4120 -0.3000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_10">
+          <pose>2.4120 -0.3000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_11">
+          <pose>2.4120 -0.1500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_11"><pose>2.4120 -0.1500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_11">
+          <pose>2.4120 -0.1500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_12">
+          <pose>2.4120 0.0000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_12"><pose>2.4120 0.0000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_12">
+          <pose>2.4120 0.0000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_13">
+          <pose>2.4120 0.1500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_13"><pose>2.4120 0.1500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_13">
+          <pose>2.4120 0.1500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_14">
+          <pose>2.4120 0.3000 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_14"><pose>2.4120 0.3000 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_14">
+          <pose>2.4120 0.3000 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <visual name="blue_plant_15">
+          <pose>2.4120 0.4500 0.0006 0 0 0</pose>
+          <geometry><cylinder><radius>0.01</radius><length>0.001</length></cylinder></geometry>
+          <material><ambient>0.94 0.94 0.94 1</ambient><diffuse>0.94 0.94 0.94 1</diffuse></material>
+        </visual>
+        <collision name="blue_supply_15"><pose>2.4120 0.4500 0.0325 0 0 0</pose><geometry><sphere><radius>0.0325</radius></sphere></geometry></collision>
+        <visual name="blue_supply_15">
+          <pose>2.4120 0.4500 0.0325 0 0 0</pose>
+          <geometry><sphere><radius>0.0325</radius></sphere></geometry>
+          <material><ambient>0.05 0.21 0.77 1</ambient><diffuse>0.05 0.21 0.77 1</diffuse></material>
+        </visual>
+        <collision name="red_camp"><pose>-1.7130 0.0000 0.1350 0 0 0</pose><geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry></collision>
+        <visual name="red_camp">
+          <pose>-1.7130 0.0000 0.1350 0 0 0</pose>
+          <geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry>
+          <material><ambient>0.60 0.64 0.69 1</ambient><diffuse>0.60 0.64 0.69 1</diffuse></material>
+        </visual>
+        <collision name="blue_camp"><pose>1.7130 0.0000 0.1350 0 0 0</pose><geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry></collision>
+        <visual name="blue_camp">
+          <pose>1.7130 0.0000 0.1350 0 0 0</pose>
+          <geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry>
+          <material><ambient>0.60 0.64 0.69 1</ambient><diffuse>0.60 0.64 0.69 1</diffuse></material>
+        </visual>
+        <collision name="front_1"><pose>0.0000 2.9620 0.1350 0 0 0</pose><geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry></collision>
+        <visual name="front_1">
+          <pose>0.0000 2.9620 0.1350 0 0 0</pose>
+          <geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry>
+          <material><ambient>0.60 0.64 0.69 1</ambient><diffuse>0.60 0.64 0.69 1</diffuse></material>
+        </visual>
+        <collision name="front_2"><pose>0.0000 0.9810 0.1350 0 0 0</pose><geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry></collision>
+        <visual name="front_2">
+          <pose>0.0000 0.9810 0.1350 0 0 0</pose>
+          <geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry>
+          <material><ambient>0.60 0.64 0.69 1</ambient><diffuse>0.60 0.64 0.69 1</diffuse></material>
+        </visual>
+        <collision name="front_3"><pose>0.0000 -0.9810 0.1350 0 0 0</pose><geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry></collision>
+        <visual name="front_3">
+          <pose>0.0000 -0.9810 0.1350 0 0 0</pose>
+          <geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry>
+          <material><ambient>0.60 0.64 0.69 1</ambient><diffuse>0.60 0.64 0.69 1</diffuse></material>
+        </visual>
+        <collision name="front_4"><pose>0.0000 -2.9620 0.1350 0 0 0</pose><geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry></collision>
+        <visual name="front_4">
+          <pose>0.0000 -2.9620 0.1350 0 0 0</pose>
+          <geometry><cylinder><radius>0.13</radius><length>0.27</length></cylinder></geometry>
+          <material><ambient>0.60 0.64 0.69 1</ambient><diffuse>0.60 0.64 0.69 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <include>
+      <uri>model://harurobo</uri>
+      <pose>-3.112 0 0 0 0 0</pose>
+    </include>
+  </world>
+</sdf>

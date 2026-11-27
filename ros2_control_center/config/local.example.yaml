@@ -1,0 +1,11 @@
+# この例を ~/.config/ros2-control-center/local.yaml にコピーし、
+# 接続した機器に対応する固定名を指定してください。
+variables:
+  LIDAR_PORT: ''
+  IMU_PORT: ''
+  CAMERA_PORT: ''
+# domains:
+#   real: 53
+#   demo: 88
+# setup:
+#   - ~/another_ros_workspace/install/setup.bash

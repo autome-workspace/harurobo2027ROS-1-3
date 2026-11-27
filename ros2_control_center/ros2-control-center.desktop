@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ROS 2 Control Center
+Comment=ROS 2 プログラムの起動・停止・監視
+Exec=ros2-control-center
+Icon=ros2-control-center
+Terminal=false
+Categories=Development;
+StartupWMClass=ros2-control-center

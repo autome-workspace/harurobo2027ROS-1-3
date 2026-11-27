@@ -1,0 +1,146 @@
+settings:
+  setup: [/opt/ros/jazzy/setup.bash]
+  domains: {real: 53, simulation: 87, demo: 88}
+  variables: {LIDAR_PORT: '', IMU_PORT: '', CAMERA_PORT: '', CAMERA_CALIBRATION: '', APPROACH_SETTINGS: '', CAMERA_WIDTH: 640, CAMERA_HEIGHT: 480, CAMERA_FPS: 30.0, CAMERA_CALIBRATIONS: {}, BALL_DETECTOR_CONFIG: ''}
+programs:
+  - id: motor
+    name: 足回り駆動
+    conflicts_with: [auto_drive, camera_lidar_calibration]
+    modes: [real]
+    nodes: [/harurobo_manual_drive]
+    explicit: true
+    confirmation: 実機の周囲と物理非常停止を確認し、スティックを中立にしてL1を離してください。足回り駆動を開始しますか？
+    setup: [real/manual_drive/install/setup.bash]
+    command: [/usr/bin/python3, -u, ros2_control_center/core/manual_drive_session.py]
+    depends_on: [joy]
+    expected_stdout: 'READY: continuous drive.'
+    stdout_prefix: true
+  - id: can
+    name: USB-CAN 受信診断
+    autostart: true
+    modes: [real]
+    setup: [real/manual_drive/install/setup.bash]
+    command: [ros2, run, harurobo_base, can_monitor, --ros-args, --params-file, real/manual_drive/src/harurobo_base/config/stage_b_monitor.yaml]
+    nodes: [/harurobo_can_monitor]
+    expected_topics: [/diagnostics]
+    diagnostic_name: 'harurobo_base: SocketCAN monitor'
+  - id: joy
+    name: PS4 コントローラー
+    modes: [real]
+    setup: [real/manual_drive/install/setup.bash]
+    command: [ros2, launch, harurobo_teleop, stage_a.launch.py]
+    nodes: [/game_controller, /harurobo_teleop]
+    expected_topics: [/joy, /cmd_vel/manual]
+  - id: lidar
+    name: LD03 LiDAR
+    modes: [real]
+    command: [/usr/bin/python3, -u, real/lidar/ld03_node.py, --ros-args, -p, 'port:={LIDAR_PORT}']
+    requires_device: LIDAR_PORT
+    nodes: [/ld03_node]
+    expected_topics: [/scan]
+  - id: imu
+    name: DM IMU 受信
+    modes: [real]
+    setup: [real/manual_drive/install/setup.bash]
+    command: [ros2, launch, harurobo_imu, receive.launch.py, 'port:={IMU_PORT}']
+    requires_device: IMU_PORT
+    nodes: [/harurobo_imu]
+    expected_topics: [/imu/data]
+  - id: camera
+    name: USB カメラ
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [ros2, run, ball_auto_approach, usb_camera, --ros-args, --params-file, real/src/ball_auto_approach/config/params.yaml, -p, 'device:={CAMERA_PORT}']
+    requires_device: CAMERA_PORT
+    parameters: {width: CAMERA_WIDTH, height: CAMERA_HEIGHT, fps: CAMERA_FPS}
+    optional_file_parameters: {calibration: CAMERA_CALIBRATION}
+    nodes: [/usb_camera]
+    expected_topics: [/camera/camera_info]
+  - id: detector
+    name: ボール認識
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [ros2, run, ball_auto_approach, ball_detector, --ros-args, --params-file, real/src/ball_auto_approach/config/params.yaml]
+    optional_params_file: BALL_DETECTOR_CONFIG
+    nodes: [/ball_detector]
+    expected_topics: [/ball/detection]
+    depends_on: [camera]
+  - id: approach
+    name: ボール自動接近（非駆動確認）
+    conflicts_with: [camera_lidar_calibration]
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [/usr/bin/python3, -u, ros2_control_center/core/approach_session.py, '{APPROACH_SETTINGS}']
+    requires_file: APPROACH_SETTINGS
+    nodes: [/approach_controller, /ball_localizer, /control_center_laser_mount, /control_center_camera_mount, /control_center_optical_mount]
+    expected_topics: [/ball/state, /ball/estimate, /control_center/approach_cmd_vel]
+    depends_on: [detector, joy, lidar]
+  - id: auto_drive
+    name: 自動接近・実機駆動
+    modes: [real]
+    explicit: true
+    confirmation: ボールの位置推定と停止距離を確認し、周囲と物理非常停止を確認してください。L1中立で押し直し後、△で自動接近を開始します。実機駆動を有効にしますか？
+    setup: [real/manual_drive/install/setup.bash]
+    command: [/usr/bin/python3, -u, ros2_control_center/core/manual_drive_session.py, --automatic]
+    conflicts_with: [motor]
+    nodes: [/harurobo_manual_drive]
+    depends_on: [approach]
+    expected_stdout: 'READY: continuous drive.'
+    stdout_prefix: true
+  - id: camera_lidar_calibration
+    name: カメラ・LiDAR 外部較正
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [ros2, launch, camera_lidar_calibration, calibration.launch.py]
+    nodes: [/camera_lidar_calibration]
+    expected_topics: [/camera_lidar/calibration/status]
+    depends_on: [camera, lidar]
+    conflicts_with: [motor, approach, auto_drive, camera_lidar_projection]
+  - id: camera_lidar_projection
+    name: 較正済みLiDARの画像投影
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [ros2, launch, camera_lidar_calibration, projection.launch.py]
+    nodes: [/camera_lidar_projection]
+    expected_topics: [/camera_lidar/overlay]
+    depends_on: [camera, lidar]
+    conflicts_with: [camera_lidar_calibration]
+  - id: gazebo
+    name: Gazebo
+    modes: [simulation]
+    autostart: true
+    setup: [simulation/install/setup.bash]
+    command: [ros2, launch, harurobo_sim, sim.launch.py]
+    nodes: [/parameter_bridge]
+    expected_topics: [/clock, /odom, /scan]
+  - id: joy_sim
+    name: PS4 操縦（Gazebo）
+    modes: [simulation]
+    setup: [real/manual_drive/install/setup.bash]
+    command: [ros2, launch, harurobo_teleop, stage_a.launch.py]
+    nodes: [/game_controller, /harurobo_teleop]
+    expected_topics: [/joy, /cmd_vel/manual]
+    depends_on: [gazebo]
+  - id: rviz_real
+    name: RViz2（実機）
+    modes: [real]
+    command: [rviz2, -d, ros2_control_center/config/control_center.rviz]
+    nodes: [/rviz2]
+  - id: rviz_sim
+    name: RViz2（シミュレーション）
+    modes: [simulation]
+    command: [rviz2, --ros-args, -p, 'use_sim_time:=true']
+    nodes: [/rviz2]
+  - id: demo_source
+    name: デモ送信
+    modes: [demo]
+    autostart: true
+    command: [ros2, topic, pub, -r, '2', --print, '0', /control_center_demo, std_msgs/msg/String, '{data: demo}']
+    expected_topics: [/control_center_demo]
+  - id: demo_echo
+    name: デモ受信
+    modes: [demo]
+    autostart: true
+    depends_on: [demo_source]
+    command: [ros2, topic, echo, --qos-reliability, reliable, /control_center_demo, std_msgs/msg/String]
+    expected_stdout: "data: demo"

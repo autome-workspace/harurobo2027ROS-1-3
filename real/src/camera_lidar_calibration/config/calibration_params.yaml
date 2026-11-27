@@ -1,0 +1,51 @@
+camera_lidar_calibration:
+  ros__parameters:
+    image_topic: /camera/image_raw
+    info_topic: /camera/camera_info
+    scan_topic: /scan
+    camera_frame: camera_optical_frame
+    lidar_frame: laser
+    intrinsics_file: ''
+    image_rectified: false
+    ball_diameter: 0.06
+    center_height_offset: 0.0
+    hsv_lower: [174, 70, 60]
+    hsv_upper: [12, 255, 255]
+    min_area: 80.0
+    min_circularity: 0.70
+    min_solidity: 0.75
+    center_mode: sphere
+    image_dominance_ratio: 9.0
+    min_range: 0.10
+    max_range: 2.0
+    cluster_gap: 0.035
+    max_missing_bins: 2
+    min_points: 4
+    max_fit_rms: 0.005
+    min_arc_span: 0.7
+    scan_stamp_is_end: true
+    sync_tolerance: 0.10
+    stale_timeout: 0.6
+    stationary_duration: 0.7
+    stationary_position: 0.008
+    stationary_pixels: 3.0
+    sample_interval: 1.0
+    duplicate_distance: 0.035
+    target_samples: 25
+    max_samples: 100
+    validation_every: 5
+    min_train_samples: 12
+    min_validation_samples: 4
+    min_axis_span: 0.10
+    min_hull_area: 0.015
+    min_pixel_span: 35.0
+    ransac_pixels: 3.0
+    max_rms_pixels: 2.5
+    max_error_pixels: 6.0
+    ambiguity_pixels: 0.15
+    max_translation: 3.0
+    max_condition: 100000.0
+    association_pixels: 15.0
+    track_step: 0.06
+    processing_hz: 5.0
+    extrinsic_file: ''
