@@ -4,6 +4,9 @@ variables:
   LIDAR_PORT: ''
   IMU_PORT: ''
   CAMERA_PORT: ''
+  ENCODER_CAN_INTERFACE: slcan0
+  ENCODER_CAN_PORT: ''  # AMT側SLCAN機器の/dev/serial/by-id/固定名
+  MOTOR_AUTO_APPROACH: false  # 手動のみで開始。自動接近はGUIで明示的にON
 # domains:
 #   real: 53
 #   demo: 88

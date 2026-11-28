@@ -1,0 +1,6 @@
+amt102_encoders:
+  ros__parameters:
+    interface: slcan0
+    expected_devices: 2
+    stale_timeout: 0.5
+    publish_hz: 50.0

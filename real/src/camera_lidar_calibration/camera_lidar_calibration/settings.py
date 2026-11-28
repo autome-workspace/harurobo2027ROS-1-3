@@ -47,6 +47,9 @@ def validate(settings):
         raise ValueError('距離・時間・許容誤差は正の値にしてください。')
     if not 0 < settings['min_range'] < settings['max_range']:
         raise ValueError('認識距離の上下限が無効です。')
+    if not (-180 <= settings['lidar_sector_center_deg'] <= 180
+            and 0 < settings['lidar_sector_width_deg'] <= 360):
+        raise ValueError('LiDAR角度中心は−180〜180度、角度幅は0より大きく360度以下です。')
     if abs(settings['center_height_offset']) >= settings['ball_diameter'] / 2:
         raise ValueError('走査面が球に交差しません。高さ差は球の半径未満にしてください。')
     if settings['image_dominance_ratio'] != 0 and settings['image_dominance_ratio'] < 1:
@@ -62,11 +65,11 @@ def validate(settings):
         raise ValueError('HSVのS/V上下限が逆転しています。')
     if not (0 < settings['min_circularity'] <= 1 and 0 < settings['min_solidity'] <= 1):
         raise ValueError('円形度・充実度は0より大きく1以下にしてください。')
-    if not (4 <= settings['min_points'] <= 1000 and 0 <= settings['max_missing_bins'] <= 20
-            and 12 <= settings['min_train_samples'] <= settings['max_samples'] <= 500
-            and 4 <= settings['min_validation_samples'] <= settings['max_samples']
+    if not (3 <= settings['min_points'] <= 1000 and 0 <= settings['max_missing_bins'] <= 20
+            and 4 <= settings['min_train_samples'] <= settings['max_samples'] <= 500
+            and 1 <= settings['min_validation_samples'] <= settings['max_samples']
             and 1 <= settings['validation_every'] <= 100
-            and 16 <= settings['target_samples'] <= settings['max_samples']
+            and 5 <= settings['target_samples'] <= settings['max_samples']
             and .2 <= settings['processing_hz'] <= 15):
         raise ValueError('サンプル数・点数・処理周期が範囲外です。')
     if settings['min_train_samples'] + settings['min_validation_samples'] > settings['max_samples']:

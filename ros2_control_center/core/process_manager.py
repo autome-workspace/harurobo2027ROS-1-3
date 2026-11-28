@@ -59,8 +59,10 @@ class ProcessManager(QObject):
     def read(self, key, job, stream, pipe):
         if pipe.closed:
             return
+        # Structured monitor snapshots include all channels; log lines stay small.
+        limit = 65536 if key == '_monitor' else 4096
         try:
-            data = os.read(pipe.fileno(), 16384)
+            data = os.read(pipe.fileno(), 65536 if key == '_monitor' else 16384)
         except BlockingIOError:
             return
         pending = job.buffers.get(stream, b'') + data
@@ -68,12 +70,12 @@ class ProcessManager(QObject):
         tail = lines.pop()
         if not data:
             pipe.close()
-        if tail and (not data or len(tail) >= 4096):
+        if tail and (not data or len(tail) >= limit):
             lines.append(tail)
             tail = b''
         job.buffers[stream] = tail
         for line in lines:
-            self.output.emit(key, stream, line[:4096].decode(errors='replace').rstrip())
+            self.output.emit(key, stream, line[:limit].decode(errors='replace').rstrip())
 
     def poll(self):
         now = time.monotonic()

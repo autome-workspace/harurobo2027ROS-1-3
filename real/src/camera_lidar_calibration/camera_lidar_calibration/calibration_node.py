@@ -136,7 +136,7 @@ class CalibrationNode(Node):
         try:
             request = json.loads(msg.data)
             action = request['action']
-            if self.tf_active() and action in ('configure', 'capture', 'delete', 'clear', 'solve', 'load', 'auto', 'tune_stationarity', 'pick_color'):
+            if self.tf_active() and action in ('configure', 'capture', 'delete', 'clear', 'solve', 'load', 'auto', 'tune_stationarity', 'pick_color', 'sample_preset', 'lidar_sector', 'lidar_min_points'):
                 raise ValueError('先に「TF配信停止」を押してください。取付変更後は受信側のTFキャッシュも再起動が必要です。')
             if action == 'capture':
                 sample = self.collector.capture(request.get('role', 'auto'))
@@ -199,10 +199,46 @@ class CalibrationNode(Node):
                 self.result = None
                 self.camera = None
                 self.compatible = True
+            elif action in ('lidar_sector', 'lidar_min_points'):
+                changes = request['values']
+                allowed = ({'lidar_sector_enabled', 'lidar_sector_center_deg', 'lidar_sector_width_deg'}
+                           if action == 'lidar_sector' else {'min_points'})
+                if set(changes) != allowed:
+                    raise ValueError('LiDAR設定の項目が無効です。')
+                settings = validate(self.settings | changes)
+                atomic_yaml(user_directory() / 'settings.yaml', settings)
+                self.settings = settings
+                self.collector.settings = settings
+                self.collector.auto = False
+                self.collector.history.clear()
+                self.collector.latest = None
+                self.selected_center = None
+                self.manual_selection = False
+                self.result = None
+                self.message = 'LiDAR設定を保存しました。取得済みサンプルは保持しています。再較正後に結果を保存してください。'
+                if settings['min_points'] == 3:
+                    self.message += ' 3点判定は誤認識に注意し、画像と位置を照合してください。'
+            elif action == 'sample_preset':
+                presets = {'five': (4, 1, 5, 5), 'standard': (12, 4, 25, 5)}
+                if request.get('preset') not in presets:
+                    raise ValueError('サンプル数の設定が無効です。')
+                values = presets[request['preset']]
+                settings = validate(self.settings | dict(zip(
+                    ('min_train_samples', 'min_validation_samples', 'target_samples', 'validation_every'), values)))
+                atomic_yaml(user_directory() / 'settings.yaml', settings)
+                self.settings = settings
+                self.collector.settings = settings
+                self.collector.auto = False
+                self.result = None
+                self.message = ('5点モード：推定4点＋独立検証1点。少数点では誤認識に弱いため、'
+                                '四隅に広げて取得し、別位置でも投影を確認してください。'
+                                if request['preset'] == 'five' else '標準モードに戻しました。')
+                self.message += ' 取得済みサンプルと用途は保持しています。'
             elif action == 'solve':
                 if self.camera is None:
                     raise ValueError('カメラ内部較正がありません。')
                 self.collector.auto = False
+                self.result = None
                 self.result = solve(self.collector.samples, self.camera, self.settings)
                 self.message = '較正成功' if self.result['valid'] else '警告 ' + ' / '.join(self.result['warnings'])
             elif action == 'validate':

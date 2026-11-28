@@ -2,7 +2,7 @@ from glob import glob
 from setuptools import setup
 
 package = 'camera_lidar_calibration'
-executables = ('calibration_node', 'calibration_gui', 'lidar_projection_node', 'calibration_tf_publisher')
+executables = ('calibration_node', 'calibration_gui', 'lidar_projection_node', 'calibration_tf_publisher', 'approach_detector')
 setup(
     name=package, version='0.1.0', packages=[package],
     data_files=[

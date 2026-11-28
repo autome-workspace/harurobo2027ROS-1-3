@@ -68,6 +68,8 @@ def solve(samples, camera, settings):
     if not answer[0]:
         raise ValueError('平面PnPを解けませんでした。')
     fits = []
+    rejected = []
+    closest_attempt = None
     def residual(pose):
         projected, depths = project(points[consensus], pose, camera)
         result = projected - pixels[consensus]
@@ -83,10 +85,17 @@ def solve(samples, camera, settings):
         projected, depths = project(points, pose, camera)
         if (not optimized.success or np.min(depths) <= .001
                 or np.linalg.norm(pose[3:]) > settings['max_translation']):
+            rejected.append('最適化未収束' if not optimized.success else
+                            'カメラ後方の点あり' if np.min(depths) <= .001 else 'センサ間距離が上限超過')
             continue
         training_errors = errors(training, pose, camera)
         inliers = consensus & (training_errors <= settings['max_error_pixels'])
+        attempt = (int(inliers.sum()), float(np.median(training_errors)), training_errors.copy())
+        if closest_attempt is None or (-attempt[0], attempt[1]) < (-closest_attempt[0], closest_attempt[1]):
+            closest_attempt = attempt
         if inliers.sum() < settings['min_train_samples']:
+            rejected.append(f"誤差{settings['max_error_pixels']:g}px以内の対応点が"
+                            f"{inliers.sum()}点（必要{settings['min_train_samples']}点）")
             continue
         # Refit only the training consensus. Validation points never enter the optimizer.
         inlier_points, inlier_pixels = points[inliers], pixels[inliers]
@@ -98,15 +107,18 @@ def solve(samples, camera, settings):
         final = least_squares(final_residual, pose, loss='soft_l1',
                               f_scale=settings['ransac_pixels'], max_nfev=600, x_scale='jac')
         if not final.success:
+            rejected.append('再最適化が未収束')
             continue
         pose = final.x
         _, final_depths = project(points, pose, camera)
         if np.min(final_depths) <= .001 or np.linalg.norm(pose[3:]) > settings['max_translation']:
+            rejected.append('再最適化後の前方条件・センサ間距離が不適合')
             continue
         all_errors = errors(samples, pose, camera)
         train_errors = errors(training, pose, camera)
         validation_errors = errors(validation, pose, camera)
         if np.max(train_errors[inliers]) > settings['max_error_pixels']:
+            rejected.append('再最適化後の対応点誤差が上限超過')
             continue
         norms = np.maximum(np.linalg.norm(final.jac, axis=0), 1e-12)
         singular = np.linalg.svd(final.jac / norms, compute_uv=False)
@@ -120,7 +132,16 @@ def solve(samples, camera, settings):
                          validation_rms=validation_rms, errors=all_errors,
                          inliers=inliers, score=score))
     if not fits:
-        raise ValueError('前方条件・物理範囲・再投影精度を満たす解がありません。')
+        detail = ' / '.join(dict.fromkeys(rejected))
+        if closest_attempt is not None:
+            values = closest_attempt[2]
+            order = np.argsort(values)[::-1][:3]
+            entries = [f"ID {training[i]['id']}: {values[i]:.1f}px" for i in order
+                       if values[i] > settings['max_error_pixels']]
+            if entries:
+                detail += '。暫定姿勢でずれが大きい点：' + '、'.join(entries)
+                detail += '。姿勢が未確定のため誤対応と断定せず、画像とLiDARが同じ球か確認して取り直してください'
+        raise ValueError('前方条件・物理範囲・再投影精度を満たす解がありません。' + detail)
     fits.sort(key=lambda item: item['score'])
     best = fits[0]
     warnings = []

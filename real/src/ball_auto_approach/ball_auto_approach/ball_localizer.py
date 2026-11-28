@@ -70,8 +70,31 @@ class BallLocalizer(Node):
             ('max_stamp_skew', .10), ('scan_stamp_is_end', True),
             ('cluster_gap', .035), ('max_missing_bins', 2), ('min_points', 4), ('fit_error', .009),
             ('angular_gate', .07), ('size_ratio_limit', 1.6), ('max_range', 2.0),
+            ('use_saved_extrinsic', False), ('calibrated_camera_frame', 'camera_optical_frame'),
+            ('calibrated_lidar_frame', 'laser'),
+            ('camera_rotation_in_lidar', [0.0]), ('camera_origin_in_lidar', [0.0]),
+            ('sphere_surface_distance', False),
+            ('lidar_sector_enabled', False), ('lidar_sector_center_deg', 0.0), ('lidar_sector_width_deg', 180.0),
+            ('self_filter_enabled', False), ('self_filter_box', [0.0]),
         ])
         self.p = lambda name: self.get_parameter(name).value
+        self.self_box = None
+        if self.p('self_filter_enabled'):
+            box = np.asarray(self.p('self_filter_box'), float)
+            if box.shape != (4,) or not np.isfinite(box).all() or not (box[0] < box[1] and box[2] < box[3]):
+                raise ValueError('機体反射の除外範囲が無効です。')
+            self.self_box = box
+        self.camera_mount = None
+        if self.p('use_saved_extrinsic'):
+            rotation = np.asarray(self.p('camera_rotation_in_lidar'), float)
+            origin = np.asarray(self.p('camera_origin_in_lidar'), float)
+            if (rotation.size != 9 or origin.shape != (3,) or not np.isfinite(origin).all()
+                    or not np.isfinite(rotation).all()):
+                raise ValueError('保存外部較正の行列・位置が無効です。')
+            rotation = rotation.reshape(3, 3)
+            if not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-6) or not np.isclose(np.linalg.det(rotation), 1.):
+                raise ValueError('保存外部較正の回転が無効です。')
+            self.camera_mount = rotation, origin
         self.history = deque(maxlen=12)
         self.previous_scan = None
         self.lock = None
@@ -144,6 +167,8 @@ class BallLocalizer(Node):
         return self.p('association_mode') != 'empirical' or self.in_empirical_range(center, distance)
 
     def match(self, scan, detection, t, estimate, previous):
+        if self.camera_mount is not None and scan.header.frame_id != self.p('calibrated_lidar_frame'):
+            return
         base = estimate.header.frame_id
         laser_rot, laser_origin = transform_parts(self.tf.lookup_transform(base, scan.header.frame_id, t))
         mode = self.p('association_mode')
@@ -151,8 +176,15 @@ class BallLocalizer(Node):
         if mode == 'calibrated' and detection is not None:
             if detection.ray.z <= 0 or detection.angular_radius <= 0:
                 return
-            camera = transform_parts(self.tf.lookup_transform(
-                base, detection.header.frame_id, Time.from_msg(detection.header.stamp)))
+            if self.camera_mount is not None:
+                if (detection.header.frame_id != self.p('calibrated_camera_frame')
+                        or scan.header.frame_id != self.p('calibrated_lidar_frame')):
+                    return
+                rotation, origin = self.camera_mount
+                camera = laser_rot @ rotation, laser_rot @ origin + laser_origin
+            else:
+                camera = transform_parts(self.tf.lookup_transform(
+                    base, detection.header.frame_id, Time.from_msg(detection.header.stamp)))
         elif mode not in ('calibrated', 'empirical'):
             return
         radius = estimate.ball_radius
@@ -171,6 +203,11 @@ class BallLocalizer(Node):
         r = np.where(valid, ranges, 0.)
         planar = np.column_stack((r * np.cos(angles), r * np.sin(angles)))
         points = np.column_stack((planar, np.zeros(len(r)))) @ laser_rot.T + laser_origin
+        if self.self_box is not None:
+            x0, x1, y0, y1 = self.self_box
+            own_body = ((points[:, 0] >= x0) & (points[:, 0] <= x1)
+                        & (points[:, 1] >= y0) & (points[:, 1] <= y1))
+            valid &= ~own_body
 
         # Rotate a near-360-degree scan to avoid splitting a target at the scan seam.
         if abs(abs(scan.angle_increment) * len(ranges) - math.tau) < .03:
@@ -179,7 +216,13 @@ class BallLocalizer(Node):
             planar, points, valid, r, present = (array[order] for array in (planar, points, valid, r, present))
 
         candidates = []
-        for ids in scan_clusters(planar, valid, self.p('cluster_gap'), self.p('max_missing_bins')):
+        candidate_valid = valid.copy()
+        if self.p('lidar_sector_enabled'):
+            center_angle = math.radians(self.p('lidar_sector_center_deg'))
+            delta = np.arctan2(planar[:, 1], planar[:, 0]) - center_angle
+            candidate_valid &= (np.abs(np.arctan2(np.sin(delta), np.cos(delta)))
+                                <= math.radians(self.p('lidar_sector_width_deg')) / 2)
+        for ids in scan_clusters(planar, candidate_valid, self.p('cluster_gap'), self.p('max_missing_bins')):
             if (len(ids) < self.p('min_points') or np.count_nonzero(present[ids]) < 2
                     or np.min(r[ids]) > self.p('max_range')):
                 continue
@@ -198,6 +241,8 @@ class BallLocalizer(Node):
                 continue
             center = laser_rot @ np.array([*center_2d, 0.]) + laser_origin
             center[2] = z
+            if self.p('sphere_surface_distance'):
+                distance = float(math.sqrt(float(center_2d @ center_2d) + offset**2) - radius)
             if center[0] <= 0:
                 continue
             matched = (self.matches_track(center, distance) if estimate.tracking

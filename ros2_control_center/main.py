@@ -1,3 +1,4 @@
+import argparse
 import fcntl
 import os
 from pathlib import Path
@@ -14,7 +15,11 @@ from ui.main_window import MainWindow
 
 
 def main():
-    app = QApplication(sys.argv)
+    parser = argparse.ArgumentParser(description='ROS 2 Control Center')
+    parser.add_argument('--encoders', action='store_true', help='実機モードでエンコーダーの読取を開始')
+    parser.add_argument('--encoder-rviz', action='store_true', help='エンコーダーの読取とRViz表示を開始')
+    options, qt_args = parser.parse_known_args()
+    app = QApplication([sys.argv[0], *qt_args])
     app.setApplicationName('ROS 2 Control Center')
     app.setDesktopFileName('ros2-control-center')
     app.setWindowIcon(QIcon(str(APP / 'resources/icon.svg')))
@@ -33,6 +38,10 @@ def main():
         window = MainWindow(controller)
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, lambda signum, frame: window.close())
+        if options.encoders or options.encoder_rviz:
+            window.mode.setCurrentIndex(window.mode.findData('real'))
+            controller.encoder_read_requested = True
+            controller.encoder_view_requested = options.encoder_rviz
         window.show()
         return app.exec()
 

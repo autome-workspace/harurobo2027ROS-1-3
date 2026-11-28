@@ -17,6 +17,13 @@ def scan_points(scan):
 
 def detect_candidates(scan, settings):
     points, ids = scan_points(scan)
+    if settings['lidar_sector_enabled'] and len(points):
+        center = math.radians(settings['lidar_sector_center_deg'])
+        # Signed shortest angular difference handles sectors crossing +/-pi.
+        angles = np.arctan2(points[:, 1], points[:, 0])
+        delta = np.arctan2(np.sin(angles - center), np.cos(angles - center))
+        use = np.abs(delta) <= math.radians(settings['lidar_sector_width_deg']) / 2 + 1e-12
+        points, ids = points[use], ids[use]
     if not len(points):
         return points, []
     distances = np.linalg.norm(points, axis=1)

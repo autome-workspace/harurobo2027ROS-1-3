@@ -281,3 +281,130 @@ def test_old_bundle_accepts_new_acquisition_defaults(tmp_path):
     save_bundle(path, bundle(settings, camera, samples, result))
     saved, _ = read_bundle(path)
     assert saved['settings']['image_dominance_ratio'] == 9.
+
+
+@pytest.mark.parametrize('pose', [
+    [.18, -.3, .08, .04, -.03, 1.15],
+    [-.25, .15, -.12, -.05, .08, 1.3],
+])
+def test_five_sample_calibration_and_validation(tmp_path, pose):
+    from camera_lidar_calibration.settings import validate
+    camera = model()
+    settings = solver_settings() | {'min_train_samples': 4, 'min_validation_samples': 1,
+                                    'target_samples': 5}
+    validate(settings)
+    points = np.array([[-.22, -.16, -.015], [.23, -.15, -.015],
+                       [.24, .17, -.015], [-.21, .18, -.015], [.02, -.01, -.015]])
+    pixels, _ = project(points, pose, camera)
+    samples = [{'id': i+1, 'role': 'validation' if i == 4 else 'train',
+                'xyz': point.tolist(), 'uv': pixel.tolist()}
+               for i, (point, pixel) in enumerate(zip(points, pixels))]
+    result = solve(samples, camera, settings)
+    assert result['valid'], result['warnings']
+    assert np.allclose(result['translation'], pose[3:], atol=1e-5)
+    assert result['used_samples'] == 4 and result['validation_samples'] == 1
+    path = tmp_path / 'five.yaml'
+    save_bundle(path, bundle(settings, camera, samples, result))
+    assert load_valid(path)[0]['result']['valid']
+    # Four fitted points alone cannot establish independent validity.
+    assert not solve(samples[:4], camera, settings)['valid']
+    bad = copy.deepcopy(samples)
+    bad[-1]['uv'][0] += 30
+    assert not solve(bad, camera, settings)['valid']
+    line = copy.deepcopy(samples)
+    for sample in line:
+        sample['xyz'][1] = 0.
+    with pytest.raises(ValueError, match='一直線'):
+        solve(line, camera, settings)
+    narrow = copy.deepcopy(samples)
+    for sample in narrow:
+        sample['xyz'][0] *= .01
+        sample['xyz'][1] *= .01
+    with pytest.raises(ValueError, match='分布'):
+        solve(narrow, camera, settings)
+    with pytest.raises(ValueError):
+        validate(settings | {'min_train_samples': 3})
+
+
+@pytest.mark.parametrize('start,increment', [(-math.pi, math.tau/1440),
+                                            (0., math.tau/1440),
+                                            (math.pi, -math.tau/1440)])
+def test_lidar_sector_filters_points_and_candidates(start, increment):
+    from types import SimpleNamespace
+    from camera_lidar_calibration.settings import validate
+    angles = start + np.arange(1440)*increment
+    rays = np.column_stack((np.cos(angles), np.sin(angles)))
+    settings = solver_settings()
+    radius = math.sqrt(.03**2-.015**2)
+    ranges = np.full(1440, np.inf)
+    for center in (np.array([.5, 0.]), np.array([-.5, 0.])):
+        b = rays@center
+        discriminant = b*b-(center@center-radius**2)
+        hit = (b>0)&(discriminant>=0)
+        ranges[hit] = np.minimum(ranges[hit], b[hit]-np.sqrt(discriminant[hit]))
+    scan = SimpleNamespace(angle_min=start, angle_increment=increment,
+                           range_min=.05, range_max=3., ranges=ranges.tolist())
+    original = list(scan.ranges)
+    _, all_candidates = detect_candidates(scan, settings)
+    assert len(all_candidates) == 2
+    settings |= {'lidar_sector_enabled': True, 'lidar_sector_center_deg': 180.,
+                 'lidar_sector_width_deg': 180.}
+    validate(settings)
+    points, candidates = detect_candidates(scan, settings)
+    assert len(candidates) == 1 and candidates[0]['center'][0] < 0
+    assert np.all(points[:, 0] <= 1e-10)
+    ids = candidates[0]['indices']
+    reconstructed = ranges[ids, None]*rays[ids]
+    assert np.allclose(reconstructed, candidates[0]['points'])
+    settings['lidar_sector_center_deg'] = 0.
+    points, candidates = detect_candidates(scan, settings)
+    assert len(candidates) == 1 and candidates[0]['center'][0] > 0
+    settings['lidar_sector_width_deg'] = 360.
+    assert len(detect_candidates(scan, settings)[1]) == 2
+    assert scan.ranges == original
+    with pytest.raises(ValueError):
+        validate(settings | {'lidar_sector_width_deg': 0.})
+    with pytest.raises(ValueError):
+        validate(settings | {'lidar_sector_center_deg': 181.})
+
+
+def test_three_point_sphere_is_optional_and_fitted():
+    from types import SimpleNamespace
+    from camera_lidar_calibration.settings import validate
+    settings = solver_settings()
+    radius = math.sqrt(.03**2-.015**2)
+    angles = np.arange(360)*math.pi/180
+    rays = np.column_stack((np.cos(angles), np.sin(angles)))
+    center = .5*np.array([math.cos(math.radians(191)), math.sin(math.radians(191))])
+    ranges = np.full(360, np.inf)
+    for i in [189, 191, 193]:
+        b = rays[i]@center
+        ranges[i] = b-math.sqrt(b*b-(center@center-radius**2))
+    scan = SimpleNamespace(angle_min=0., angle_increment=math.pi/180,
+                           range_min=.05, range_max=3., ranges=ranges.tolist())
+    assert not detect_candidates(scan, settings)[1]
+    settings['min_points'] = 3
+    validate(settings)
+    candidates = detect_candidates(scan, settings)[1]
+    assert len(candidates) == 1
+    assert np.allclose(candidates[0]['center'][:2], center, atol=1e-4)
+    assert candidates[0]['fit_rms'] < 1e-5
+    # Two returns are never enough for a sphere candidate.
+    scan.ranges[189] = float('inf')
+    assert not detect_candidates(scan, settings)[1]
+    with pytest.raises(ValueError):
+        validate(settings | {'min_points': 2})
+
+
+def test_inconsistent_correspondences_report_sample_ids():
+    camera = model()
+    settings = solver_settings() | {'min_train_samples': 4, 'min_validation_samples': 1,
+                                    'target_samples': 5}
+    points = np.array([[-.22, -.16, -.015], [.23, -.15, -.015],
+                       [.24, .17, -.015], [-.21, .18, -.015]])
+    pixels, _ = project(points, [.18, -.3, .08, .04, -.03, 1.15], camera)
+    pixels[0] += [120., -100.]
+    samples = [{'id': i+1, 'role': 'train', 'xyz': point.tolist(), 'uv': pixel.tolist()}
+               for i, (point, pixel) in enumerate(zip(points, pixels))]
+    with pytest.raises(ValueError, match='ずれが大きい点：ID'):
+        solve(samples, camera, settings)

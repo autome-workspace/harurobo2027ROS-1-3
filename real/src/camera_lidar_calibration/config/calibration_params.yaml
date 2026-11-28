@@ -18,6 +18,9 @@ camera_lidar_calibration:
     image_dominance_ratio: 9.0
     min_range: 0.10
     max_range: 2.0
+    lidar_sector_enabled: false
+    lidar_sector_center_deg: 0.0
+    lidar_sector_width_deg: 180.0
     cluster_gap: 0.035
     max_missing_bins: 2
     min_points: 4

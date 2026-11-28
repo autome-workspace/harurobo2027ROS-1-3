@@ -74,6 +74,10 @@ path.write_text(json.dumps([link]))
     wait(lambda: bool(controller.can.link) and not controller.can.is_up())
     window.refresh()
     assert window.can_enable.isEnabled()
+    assert not window.dashboard_rows['motor'][2].isEnabled()
+    controller.start(['motor'], explicit=True)
+    assert not controller.pending and 'motor' not in controller.processes.jobs
+    assert any('CAN' in line and '起動できません' in line for _, line in logs)
     controller.diagnostics[name] = (2, 'SocketCAN unavailable')
     assert controller.status('can')[1] == 'error'
     window.can_enable.click()
@@ -82,19 +86,39 @@ path.write_text(json.dumps([link]))
     assert controller.status('can') == ('起動中・受信待ち', 'ok')
     window.refresh()
     assert not window.can_enable.isEnabled()
+    controller.snapshot = time.monotonic()
+    window.refresh()
+    assert window.dashboard_rows['motor'][2].isEnabled()
     controller.diagnostics[name] = (2, 'SocketCAN bus-off observed (latched)')
     assert controller.status('can')[1] == 'error'
     link['flags'] = []
     state.write_text(json.dumps([link]))
     controller.can.inspect()
     wait(lambda: not controller.can.is_up())
+    # CAN may go DOWN while sensor dependencies are starting.
+    controller.snapshot = time.monotonic()
+    controller.live |= {'/joy', '/cmd_vel/manual'}
+    controller.processes.jobs['joy'] = SimpleNamespace(stopping=0)
+    controller.started['joy'] = time.monotonic()
+    controller.pending = ['motor']
+    controller.advance()
+    assert not controller.pending and 'motor' not in controller.processes.jobs
+    assert controller.failures['motor'] == '起動中止'
+    # A running drive is stopped when CAN drops; no fake process is signalled here.
+    controller.processes.jobs['motor'] = SimpleNamespace(stopping=0)
+    controller.monitor_retry = float('inf')
+    controller.tick()
+    assert 'motor' in controller.shutdown
+    controller.shutdown.clear()
+    controller.processes.jobs.pop('motor')
+    controller.processes.jobs.pop('joy')
     pkexec.write_text('#!/bin/sh\nexit 126\n')
     controller.can.activate()
     wait(lambda: not controller.can.running())
     assert any(level == 'WARN' and 'キャンセル' in line for level, line in logs)
     assert not controller.can.is_up()
 controller.processes.jobs.clear()
-controller.can.close()
+controller.can.close();controller.encoder_can.close()
 wait(controller.can.idle)
 window.close()
 print('PASS: CAN waiting/error display, GUI activation and authentication cancellation')

@@ -68,17 +68,27 @@ class FourContinuous(ContinuousGate):
         super().__init__()
         self.wheels = (0.,) * 4
         self.released_since = None
+        self.last_stop_reason = None
 
-    def stop(self):
+    def stop(self, reason='control stop'):
+        if self.armed_at is not None:
+            self.last_stop_reason = reason
+            print(f'INTERLOCK: {reason}', flush=True)
         super().stop()
         self.wheels = (0.,) * 4
         self.released_since = None
+
+    def expire(self, now):
+        if self.last is not None and now-self.last >= .150:
+            self.stop('controller input timeout (150ms)')
+        else:
+            super().expire(now)
 
     def update(self, axes, buttons, now):
         self.expire(now)
         if (len(axes) < 3 or len(buttons) <= 9 or buttons[9] not in (0, 1)
                 or any(not math.isfinite(v) or abs(v) > 1 for v in axes[:3])):
-            self.stop()
+            self.stop('invalid controller input')
             return
         self.last = now
         pressed_raw = buttons[9] == 1
@@ -94,7 +104,7 @@ class FourContinuous(ContinuousGate):
         pressed = pressed_raw or grace
         neutral = all(abs(v) <= .12 for v in axes[:3])
         if not pressed:
-            self.stop()
+            self.stop('L1 released (100ms confirmed)')
             self.ready = neutral
             return
         if self.ready and self.armed_at is None:
@@ -162,6 +172,7 @@ class DpadDrive:
         self.move = None
         self.imu = None
         self.cancelled = False
+        self.cancel_reason = None
 
     def on_joy(self, axes, buttons, now):
         previously_armed = self.gate.armed_at is not None
@@ -170,10 +181,15 @@ class DpadDrive:
         edge = len(keys) == 1 and not self.keys and len(buttons) >= 15
         self.keys = keys
         neutral = len(axes) >= 3 and all(abs(value) <= .12 for value in axes[:3])
-        held = len(buttons) > 9 and buttons[9] == 1
+        # Use the gate's debounced decision: raw L1 must not bypass its
+        # existing 100ms release filter during a distance move.
+        held = self.gate.armed_at is not None
         if not held or not neutral or self.gate.armed_at is None:
             self.request = None
         if self.move is not None and (not held or not neutral or len(keys) > 1):
+            if not self.cancelled:
+                self.cancel_reason = (getattr(self.gate,'last_stop_reason',None) or 'L1 not armed') if not held else (
+                    f'stick moved: axes={tuple(round(v,4) for v in axes[:3])}, limit=0.12' if not neutral else 'multiple D-pad buttons')
             self.cancelled = True
             self.gate.stop()
         if previously_armed and self.gate.armed_at is not None and held and neutral and edge:
@@ -194,14 +210,15 @@ class DpadDrive:
         self.imu = (now, yaw, gyro)
 
     def finish(self, reason):
-        print(f'DPAD {reason}; release L1 to re-arm', flush=True)
+        print(f'DPAD 停止理由: {reason}; 再開操作: スティック中立・L1を離して押し直す', flush=True)
         self.move = self.request = None
         self.cancelled = False
+        self.cancel_reason = None
         self.gate.stop()
 
     def command(self, now):
         if self.cancelled or (self.move is not None and self.gate.armed_at is None):
-            self.finish('cancelled by controller')
+            self.finish('cancelled: '+(self.cancel_reason or getattr(self.gate,'last_stop_reason',None) or 'controller disarmed'))
             return self.gate.wheels
         if self.gate.armed_at is None:
             self.request = None

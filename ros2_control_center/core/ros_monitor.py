@@ -23,6 +23,16 @@ def main():
         received[topic] = now
         if topic == '/ball/state':
             details['state'] = (now, message.data)
+        if topic == '/encoders/state':
+            try:
+                data = json.loads(message.data)
+                if isinstance(data, dict) and isinstance(data.get('channels'), list):
+                    details['encoders'] = (now, data)
+                    # Forward changing angles immediately; graph discovery stays at 2 Hz.
+                    print(json.dumps({'kind':'encoders', 'encoders':data,
+                                      'encoder_received_at':now}), flush=True)
+            except (ValueError, TypeError):
+                pass
         if topic == '/ball/estimate':
             stamp = message.header.stamp.sec + message.header.stamp.nanosec / 1e9
             age = node.get_clock().now().nanoseconds / 1e9 - stamp
@@ -57,7 +67,10 @@ def main():
             diagnostics = {name: entry for name, entry in diagnostics.items() if now - entry[0] < 3}
             snapshot = {
                 'nodes': nodes,
-                'approach': {name: value for name, (stamp, value) in details.items() if now - stamp < .6},
+                'approach': {name: value for name, (stamp, value) in details.items()
+                             if name in ('state', 'estimate') and now - stamp < .6},
+                'encoders': details['encoders'][1] if 'encoders' in details and now-details['encoders'][0] < .6 else {},
+                'encoder_received_at': details['encoders'][0] if 'encoders' in details else 0.,
                 'live': [topic for topic, stamp in received.items()
                          if now - stamp < 3 and node.count_publishers(topic)],
                 'diagnostics': {name: entry[1:] for name, entry in diagnostics.items()},

@@ -167,6 +167,9 @@ LABELS = {
     'min_area': '最小輪郭面積 px²', 'min_circularity': '最小円形度',
     'min_solidity': '最小充実度', 'center_mode': '画像中心 sphere / contour',
     'min_range': '最小認識距離 m', 'max_range': '最大認識距離 m',
+    'lidar_sector_enabled': 'LiDAR角度フィルターを有効化',
+    'lidar_sector_center_deg': 'LiDAR前方の角度 deg（LiDAR座標）',
+    'lidar_sector_width_deg': 'LiDAR使用角度幅 deg',
     'cluster_gap': 'クラスタ間隔 m', 'max_missing_bins': '許容欠測ビン数',
     'min_points': 'クラスタ最小点数', 'max_fit_rms': '円フィット最大RMS m',
     'min_arc_span': '最小弧幅 / 断面半径', 'scan_stamp_is_end': 'LiDAR時刻は走査終端',
@@ -281,6 +284,44 @@ class CalibrationWindow(QMainWindow):
         layout.addWidget(image_hint)
         self.validation = QCheckBox('次の手動取得は検証用（未選択時は5個ごと等、設定の割合で自動振分）')
         layout.addWidget(self.validation)
+        presets = QHBoxLayout()
+        self.five_button = QPushButton('5点モード（推定4＋検証1）')
+        self.five_button.clicked.connect(lambda: self.send('sample_preset', preset='five'))
+        presets.addWidget(self.five_button)
+        standard_button = QPushButton('標準モード（推定12以上＋検証4以上）')
+        standard_button.clicked.connect(lambda: self.send('sample_preset', preset='standard'))
+        presets.addWidget(standard_button)
+        layout.addLayout(presets)
+        self.sample_guidance = QLabel('')
+        self.sample_guidance.setWordWrap(True)
+        layout.addWidget(self.sample_guidance)
+        sector = QHBoxLayout()
+        self.sector_values = None
+        self.sector_enabled = QCheckBox('LiDAR角度制限')
+        self.sector_center = QDoubleSpinBox(minimum=-180, maximum=180, decimals=2, suffix=' °')
+        self.sector_width = QDoubleSpinBox(minimum=1, maximum=360, decimals=1, value=180, suffix=' °')
+        sector.addWidget(self.sector_enabled)
+        for label, control in (('前方の角度', self.sector_center), ('使用幅', self.sector_width)):
+            sector.addWidget(QLabel(label))
+            sector.addWidget(control)
+        self.sector_button = QPushButton('角度範囲を適用')
+        self.sector_button.clicked.connect(self.apply_sector)
+        self.sector_button.setToolTip('LiDARのX軸が0°、Y軸が90°です。元の/scanと取得済みサンプルは保持します。')
+        sector.addWidget(self.sector_button)
+        layout.addLayout(sector)
+        sparse = QHBoxLayout()
+        self.min_points_value = None
+        self.min_points_input = QDoubleSpinBox(minimum=3, maximum=1000, decimals=0, value=4)
+        sparse.addWidget(QLabel('LiDAR候補の最低点数'))
+        sparse.addWidget(self.min_points_input)
+        self.min_points_button = QPushButton('最低点数を適用')
+        self.min_points_button.clicked.connect(lambda: self.send(
+            'lidar_min_points', values={'min_points': int(self.min_points_input.value())}))
+        sparse.addWidget(self.min_points_button)
+        note = QLabel('3点は疎な球向け。誤認識に注意し、画像と位置を確認してください。')
+        note.setWordWrap(True)
+        sparse.addWidget(note)
+        layout.addLayout(sparse)
         tuning = QHBoxLayout()
         self.stability_values = None
         self.stability_duration = QDoubleSpinBox(minimum=.1, maximum=5, decimals=2, value=.4, suffix=' s')
@@ -340,6 +381,13 @@ class CalibrationWindow(QMainWindow):
             'stationary_duration': self.stability_duration.value(),
             'stationary_position': self.stability_position.value() / 1000,
             'stationary_pixels': self.stability_pixels.value(),
+        })
+
+    def apply_sector(self):
+        self.send('lidar_sector', values={
+            'lidar_sector_enabled': self.sector_enabled.isChecked(),
+            'lidar_sector_center_deg': self.sector_center.value(),
+            'lidar_sector_width_deg': self.sector_width.value(),
         })
 
     def capture(self):
@@ -428,9 +476,21 @@ class CalibrationWindow(QMainWindow):
         self.buttons['TFへ反映'].setEnabled(connected and bool((self.state.get('result') or {}).get('valid')))
         self.buttons['サンプル取得'].setEnabled(connected and self.state.get('stationary', False))
         self.tune_button.setEnabled(connected and not self.state.get('tf_process_running', False))
+        self.sector_button.setEnabled(connected and not self.state.get('tf_process_running', False))
+        self.min_points_button.setEnabled(connected and not self.state.get('tf_process_running', False))
         state = self.worker.latest_state
         if state is not None:
             self.state = state
+            if self.min_points_value != state['settings']['min_points']:
+                self.min_points_input.setValue(state['settings']['min_points'])
+                self.min_points_value = state['settings']['min_points']
+            current_sector = tuple(state['settings'][key] for key in
+                                   ('lidar_sector_enabled', 'lidar_sector_center_deg', 'lidar_sector_width_deg'))
+            if self.sector_values != current_sector:
+                self.sector_enabled.setChecked(current_sector[0])
+                self.sector_center.setValue(current_sector[1])
+                self.sector_width.setValue(current_sector[2])
+                self.sector_values = current_sector
             current_stability = tuple(state['settings'][key] for key in
                                       ('stationary_duration', 'stationary_position', 'stationary_pixels'))
             if self.stability_values != current_stability:
@@ -462,6 +522,9 @@ class CalibrationWindow(QMainWindow):
                 f"{len(state.get('samples', []))} サンプル / "
                 f"{'自動取得中' if state.get('auto') else '手動取得'}\n"
                 f"{state.get('sensor_status', '')}")
+            if state['settings']['lidar_sector_enabled']:
+                self.status.setText(self.status.text() +
+                    f" / LiDAR範囲 {state['settings']['lidar_sector_center_deg']:.1f}°中心・幅{state['settings']['lidar_sector_width_deg']:.1f}°")
             message = ('映像内のボールの色が付いている部分をクリックしてください。'
                        if self.image.picking else state.get('message', ''))
             self.message.setText(message + '\n' + state.get('tf_status', ''))
@@ -469,6 +532,14 @@ class CalibrationWindow(QMainWindow):
             self.lidar.extent = state['settings']['max_range']
             self.lidar.update()
             samples = state.get('samples', [])
+            settings = state['settings']
+            train_count = sum(sample['role'] == 'train' for sample in samples)
+            validation_count = len(samples) - train_count
+            self.sample_guidance.setText(
+                f"推定用 {train_count}/{settings['min_train_samples']} 点以上・"
+                f"検証用 {validation_count}/{settings['min_validation_samples']} 点以上。" +
+                ('少数点モード：手前左右・奥左右を推定用、別位置を検証用に。誤認識への余裕が小さく、追加検証を推奨。'
+                 if settings['min_train_samples'] < 12 or settings['min_validation_samples'] < 4 else ''))
             result_errors = {entry['id']: entry['error_pixels'] for entry in
                              (state.get('result') or {}).get('sample_errors', [])}
             signature = [(sample['id'], sample['role'], result_errors.get(sample['id'])) for sample in samples]

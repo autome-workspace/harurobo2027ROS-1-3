@@ -2,7 +2,7 @@ import time
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget, QMainWindow,
+    QComboBox, QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QListWidget, QMainWindow,
     QMessageBox, QPushButton, QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
 )
 
@@ -70,17 +70,31 @@ class MainWindow(QMainWindow):
         self.can_status = label('')
         self.can_status.setWordWrap(True)
         can_tools.addWidget(self.can_status, 1)
-        self.can_enable = QPushButton('CANを有効化')
+        self.can_enable = QPushButton('モーターCANを有効化')
         self.can_enable.setToolTip('管理者認証後、can0を1 Mbps・ONE-SHOTで有効化します。')
         self.can_enable.clicked.connect(controller.activate_can)
         can_tools.addWidget(self.can_enable)
         dashboard.addLayout(can_tools)
+        encoder_can_tools = QHBoxLayout()
+        self.encoder_can_status = label('')
+        self.encoder_can_status.setWordWrap(True)
+        encoder_can_tools.addWidget(self.encoder_can_status, 1)
+        self.encoder_can_enable = QPushButton('エンコーダーCANを有効化')
+        self.encoder_can_enable.clicked.connect(controller.activate_encoder_can)
+        encoder_can_tools.addWidget(self.encoder_can_enable)
+        self.encoder_read_start = QPushButton('エンコーダー読取開始')
+        self.encoder_read_start.clicked.connect(self.toggle_encoder_reader)
+        encoder_can_tools.addWidget(self.encoder_read_start)
+        dashboard.addLayout(encoder_can_tools)
         self.calibration_button = QPushButton('カメラ較正')
         self.calibration_button.clicked.connect(self.open_calibration)
         can_tools.addWidget(self.calibration_button)
         self.approach_settings_button = QPushButton('自動接近設定')
         self.approach_settings_button.clicked.connect(self.open_approach_settings)
         can_tools.addWidget(self.approach_settings_button)
+        self.distance_settings_button=QPushButton('指定距離移動設定')
+        self.distance_settings_button.clicked.connect(self.open_distance_settings)
+        can_tools.addWidget(self.distance_settings_button)
         self.calibration_dialog = None
         self.summary = label('')
         self.summary.setWordWrap(True)
@@ -91,6 +105,14 @@ class MainWindow(QMainWindow):
         self.approach_status = label('')
         self.approach_status.setWordWrap(True)
         dashboard.addWidget(self.approach_status)
+        self.encoder_status = label('')
+        self.encoder_status.setWordWrap(True)
+        self.encoder_status.setToolTip('角度は1回転内、相対回転数は受信開始位置が0です。規格位置は1回転65536で、内部の生カウントとは異なります。')
+        dashboard.addWidget(self.encoder_status)
+        self.motor_automatic = QCheckBox('足回り駆動で自動接近を有効にする（L1保持＋△）')
+        self.motor_automatic.setToolTip('OFFでは手動のみ。ONでは足回り起動時にカメラ・LiDARと自動接近処理も起動します。停止中に切り替えてください。')
+        self.motor_automatic.toggled.connect(self.change_motor_automatic)
+        dashboard.addWidget(self.motor_automatic)
         self.dashboard_rows = self.program_grid(dashboard)
         dashboard.addWidget(label('リアルタイムログ', 'section'))
         self.recent = label('')
@@ -111,6 +133,9 @@ class MainWindow(QMainWindow):
         self.last_device_scan = 0.0
         self.detected = {}
         device_page.addWidget(self.device_status)
+        self.device_encoder_status = label('')
+        self.device_encoder_status.setWordWrap(True)
+        device_page.addWidget(self.device_encoder_status)
         device_page.addStretch()
         params = self.page('パラメータ設定')
         params.addWidget(label('稼働中の ROS パラメータ編集は Phase 2 で対応します。'))
@@ -128,6 +153,7 @@ class MainWindow(QMainWindow):
         settings.addStretch()
         self.navigation.setCurrentRow(0)
         controller.refresh.connect(self.refresh)
+        controller.encoder_changed.connect(self.update_encoder_display)
         controller.log.connect(self.record)
         self.refresh()
 
@@ -170,14 +196,29 @@ class MainWindow(QMainWindow):
             rows[key] = widgets
         return rows
 
+    def toggle_encoder_reader(self):
+        c = self.controller
+        if 'encoders' in c.processes.jobs or 'encoders' in c.pending:
+            c.stop('encoders')
+        else:
+            c.start(['encoders'])
+
     def open_camera_settings(self):
         from ui.camera_settings import CameraSettingsDialog
         CameraSettingsDialog(self.controller.config, self).exec()
+
+    def open_distance_settings(self):
+        from ui.encoder_distance_settings import EncoderDistanceSettings
+        EncoderDistanceSettings(self.controller,self).exec()
 
     def open_approach_settings(self):
         from ui.approach_settings import ApproachSettingsDialog
         dialog = ApproachSettingsDialog(self.controller, self)
         dialog.exec()
+
+    def change_motor_automatic(self, enabled):
+        self.controller.set_motor_automatic(enabled)
+        self.refresh()
 
     def open_calibration(self):
         from ui.camera_calibration import CameraCalibrationDialog
@@ -200,7 +241,7 @@ class MainWindow(QMainWindow):
     def start_program(self, key):
         row = self.controller.config.programs[key]
         if row.get('explicit') and QMessageBox.question(
-            self, '起動の確認', row.get('confirmation', 'ボール自動接近の非駆動プレビューを起動しますか？')
+            self, '起動の確認', row.get('confirmation', 'プログラムを起動しますか？')
         ) != QMessageBox.StandardButton.Yes:
             return
         self.controller.start([key], explicit=True)
@@ -210,10 +251,38 @@ class MainWindow(QMainWindow):
         if line:
             self.latest = [*self.latest[-3:], self.logs.records[-1][2][:220]]
 
+    def update_encoder_display(self):
+        c = self.controller
+        mode = c.mode
+        self.encoder_status.setVisible(mode == 'real')
+        self.device_encoder_status.setVisible(mode == 'real')
+        if c.encoder_available():
+            data = c.encoders
+            lines = [f"AMT102 エンコーダー（読み取り専用・{data.get('interface', '接続先待ち')}）"]
+            if not data.get('can_connected'):
+                lines.append('CANの有効化待ち：' + data.get('error', ''))
+            for item in data.get('channels', []):
+                if not item.get('fresh'):
+                    lines.append(f"CH {item['channel']}：受信途絶（以前の値）")
+                    continue
+                lines.append(f"CH {item['channel']}：{item['angle_deg']:.4f}° / "
+                             f"相対 {item['relative_turns']:+.6f}回転 / {item['rx_hz']:.0f} Hz / "
+                             + item.get('fault_text', '異常履歴あり（詳細確認中）' if item['fault'] else '受信正常')
+                             + (' / 時刻同期あり' if item['synced'] else ' / 時刻同期なし'))
+            if not data.get('channels'):
+                lines.append('位置データ待ち。2台は異なるchに設定してください。')
+            text = '\n'.join(lines)
+        else:
+            text = ('エンコーダー表示データ受信待ち（読取プログラム稼働中）' if 'encoders' in c.processes.jobs
+                    else 'エンコーダー読取が停止しています。「エンコーダー読取開始」を押してください。')
+        self.encoder_status.setText(text)
+        self.device_encoder_status.setText(text)
+
     def refresh(self):
         c = self.controller
         mode = c.mode
         self.controller_help.setVisible(mode in ('real', 'simulation'))
+        self.update_encoder_display()
         self.controller_help.setText(
             ('PS4 操縦（Gazebo）を起動してください。' if mode == 'simulation'
              else 'PS4 コントローラーを起動し、受信を確認してから足回り駆動を起動してください。') +
@@ -222,14 +291,32 @@ class MainWindow(QMainWindow):
             '\nL1を離すと停止します。入力途絶後も中立・L1の押し直しが必要です。')
         self.mode.setEnabled(not c.busy() and not c.closing and
                              not (self.calibration_dialog and self.calibration_dialog.isVisible()))
+        if mode=='real' and c.config.variables.get('MOTOR_ENCODER_DISTANCE'):
+            self.controller_help.setText(self.controller_help.text()+'\nエンコーダー指定距離移動ON：L1保持＋十字キーで開始、○・L1解除で中止。')
+        self.distance_settings_button.setVisible(mode == 'real')
+        self.distance_settings_button.setEnabled('motor' not in c.processes.jobs and not c.pending and not c.shutdown and not c.closing)
         self.approach_settings_button.setVisible(mode == 'real')
+        self.motor_automatic.setVisible(mode == 'real')
+        self.motor_automatic.setEnabled(not c.closing and not c.pending and not c.shutdown
+                                        and 'motor' not in c.processes.jobs and not c.external('motor'))
+        self.motor_automatic.blockSignals(True)
+        self.motor_automatic.setChecked(bool(c.config.variables.get('MOTOR_AUTO_APPROACH')))
+        self.motor_automatic.blockSignals(False)
         self.approach_settings_button.setEnabled(
             not c.closing and not c.pending and not c.shutdown and not c.can.running()
-            and not any(key in c.processes.jobs for key in ('motor', 'approach', 'auto_drive')))
+            and 'motor' not in c.processes.jobs)
         self.approach_status.setVisible(mode == 'real')
-        if 'approach' in c.processes.jobs and c.monitor_available():
+        if 'motor' in c.processes.jobs and c.config.variables.get('MOTOR_AUTO_APPROACH') and c.monitor_available():
             state = c.approach.get('state', '状態待ち')
             code, _, reason = state.partition(' ')
+            reason = {
+                'swept footprint blocked': '機体周囲に障害物を検出',
+                'camera ball lost or stale': 'カメラのボール認識が途絶',
+                'LiDAR target lost or ambiguous': 'LiDARの対象を見失った、または候補が複数',
+                'missing or stale LiDAR track': 'LiDARの追跡データが途絶',
+                'outside verified approach range': '確認済み距離の範囲外',
+                'camera and LiDAR acquisition failed': 'カメラとLiDARの位置照合に失敗',
+            }.get(reason, reason)
             names = {'MANUAL': '△で接近開始', 'DETECTING': '対象照合中',
                      'CAMERA_ALIGN': 'カメラ位置合わせ中', 'ALIGNING': '横位置合わせ中',
                      'APPROACHING': '接近中', 'COMPLETE': '到達', 'ABORT': '中止'}
@@ -237,20 +324,32 @@ class MainWindow(QMainWindow):
             position = (f"表面距離 {estimate['distance'] * 1000:.0f} mm / "
                         f"横ずれ {estimate['lateral'] * 1000:.0f} mm"
                         if estimate.get('valid') else 'ボールの位置未確認')
-            drive = '実機駆動' if 'auto_drive' in c.processes.jobs else '非駆動確認'
+            drive = '足回り駆動・自動接近'
             self.approach_status.setText(
                 f"{drive} · {names.get(code, code)} {reason}\n{position}\n"
                 'L1を保持して△で開始、○・スティック操作・L1解除で中止')
         else:
-            self.approach_status.setText('自動接近設定を保存し、まず非駆動確認を起動してください。')
+            self.approach_status.setText('自動接近は足回り駆動に統合しました。有効にする場合は設定を保存し、上の切り替えをONにしてください。')
         self.calibration_button.setVisible(mode == 'real')
         self.calibration_button.setEnabled(
             not c.closing and not c.pending and not c.shutdown and not c.can.running()
-            and c.monitor_available() and not any(key in c.processes.jobs for key in ('motor', 'auto_drive'))
+            and c.monitor_available() and 'motor' not in c.processes.jobs
             and not c.external('motor'))
         self.can_status.setVisible(mode == 'real')
         self.can_enable.setVisible(mode == 'real')
-        self.can_status.setText(c.can.description())
+        self.can_status.setText('DM3519：' + c.can.description())
+        self.encoder_can_status.setVisible(mode == 'real')
+        self.encoder_can_enable.setVisible(mode == 'real')
+        self.encoder_read_start.setVisible(mode == 'real')
+        encoder_running = 'encoders' in c.processes.jobs or 'encoders' in c.pending
+        encoder_job = c.processes.jobs.get('encoders')
+        self.encoder_read_start.setText('エンコーダー読取停止' if encoder_running else 'エンコーダー読取開始')
+        self.encoder_read_start.setEnabled(mode == 'real' and not c.closing and not c.shutdown
+            and ((encoder_running and not (encoder_job and encoder_job.stopping))
+                 or (not encoder_running and c.monitor_available() and not c.external('encoders') and not c.pending)))
+        self.encoder_can_status.setText('AMT102：' + c.encoder_can.description())
+        self.encoder_can_enable.setEnabled(mode == 'real' and c.encoder_can.can_activate()
+                                          and not c.closing and not c.shutdown)
         self.can_enable.setEnabled(
             mode == 'real' and c.can.can_activate() and not c.closing and not c.shutdown
             and c.monitor_available() and not c.external('motor')
@@ -258,7 +357,7 @@ class MainWindow(QMainWindow):
         startable = c.monitor_available() or mode == 'demo'
         batch = [key for key, row in c.config.programs.items()
                  if mode in row['modes'] and row.get('autostart')]
-        ready = startable and not (c.pending or c.shutdown or c.closing or c.can.running())
+        ready = startable and not (c.pending or c.shutdown or c.closing or c.can.running() or c.encoder_can.running())
         self.start_all.setEnabled(ready and any(key not in c.processes.jobs and not c.external(key) for key in batch))
         self.start_all.setToolTip('一括起動対象がありません。' if not batch else '')
         self.stop_all.setEnabled(c.busy())
@@ -271,8 +370,13 @@ class MainWindow(QMainWindow):
                 widgets[1].setText(status)
                 widgets[1].setStyleSheet(f'color: {COLORS[color]}')
                 owned = key in c.processes.jobs
-                widgets[2].setEnabled(ready and not (owned or row.get('disabled') or c.external(key)))
+                can_ready = not row.get('requires_can') or c.can.drive_ready()
+                widgets[2].setEnabled(ready and can_ready and not (owned or row.get('disabled') or c.external(key)))
+                widgets[2].setToolTip('CANを有効化し、UPを確認してください。' if not can_ready else '')
                 widgets[3].setEnabled((owned or key in c.pending) and key not in c.shutdown)
+                if len(widgets) > 4:
+                    command = row['command']
+                    widgets[4].setText(' '.join(command) if isinstance(command, list) else command)
         if time.monotonic() - self.last_device_scan >= 2:
             self.last_device_scan = time.monotonic()
             try:
@@ -295,7 +399,7 @@ class MainWindow(QMainWindow):
                            '\n\n検出ノード\n' + ('\n'.join(sorted(c.nodes)) if c.monitor_available() and c.nodes else '—'))
         self.recent.setText('\n'.join(self.latest))
         self.logs.flush()
-        if c.closing and not c.processes.jobs and c.can.idle():
+        if c.closing and not c.processes.jobs and c.can.idle() and c.encoder_can.idle():
             self.close()
 
     def closeEvent(self, event):
@@ -306,7 +410,8 @@ class MainWindow(QMainWindow):
                 return
         self.controller.closing = True
         self.controller.can.close()
-        if self.controller.processes.jobs or not self.controller.can.idle():
+        self.controller.encoder_can.close()
+        if self.controller.processes.jobs or not self.controller.can.idle() or not self.controller.encoder_can.idle():
             self.controller.stop()
             event.ignore()
             return

@@ -36,6 +36,7 @@ with tempfile.TemporaryDirectory() as directory:
     errors = []
     controller.log.connect(lambda key, level, line: errors.append((key, level, line)))
     dialog = ApproachSettingsDialog(controller)
+    dialog.extrinsic.clear()
     dialog.yaw.setValue(0)
     dialog.save()
     settings = yaml.safe_load(Path(config.variables['APPROACH_SETTINGS']).read_text())
@@ -46,8 +47,12 @@ with tempfile.TemporaryDirectory() as directory:
     rclpy.init(args=[])
     node = rclpy.create_node('approach_launch_test')
     publisher = node.create_publisher(LaserScan, '/scan', 1)
-    controller.processes.start('approach', config.command('approach'), config.environment('real'))
-    controller.started['approach'] = time.monotonic()
+    # Backend-only test: this is no longer a GUI program entry.
+    config.programs['motor']['expected_topics'] = ['/ball/state', '/ball/estimate', '/control_center/approach_cmd_vel']
+    controller.processes.start('approach_test', config.wrapped([
+        '/usr/bin/python3', str(Path(__file__).resolve().parents[1]/'core/approach_session.py'),
+        config.variables['APPROACH_SETTINGS']], ['install/setup.bash']), config.environment('real'))
+    controller.started['approach_test'] = time.monotonic()
     try:
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
@@ -71,12 +76,12 @@ with tempfile.TemporaryDirectory() as directory:
             raise AssertionError(errors)
         assert controller.approach['state'] == 'MANUAL'
         assert controller.approach['estimate']['valid'] is False
-        assert controller.status('approach') == ('ボール位置の照合待ち', 'warning')
+        assert 'approach' not in config.programs and 'auto_drive' not in config.programs
         print('PASS: saved geometry, static TF launch, state/estimate monitoring, no-target indication')
     finally:
         controller.closing = True
         controller.stop()
-        controller.can.close()
+        controller.can.close();controller.encoder_can.close()
         deadline = time.monotonic() + 15
         while (controller.processes.jobs or not controller.can.idle()) and time.monotonic() < deadline:
             app.processEvents()

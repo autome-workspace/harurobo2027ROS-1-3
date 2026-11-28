@@ -4,6 +4,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -26,13 +27,14 @@ def wait(app, condition, description, timeout=25):
     raise AssertionError(description)
 
 
-def main():
+def main(local_path):
     app = QApplication([])
-    config = Config()
+    config = Config(local_path)
     # Keep the test publisher separate from an open desktop application.
     config.domains['demo'] = next(domain for domain in range(98, 101)
                                   if domain not in config.domains.values())
-    assert config.order(['approach'], 'real') == ['camera', 'detector', 'joy', 'lidar', 'approach']
+    assert 'approach' not in config.programs and 'auto_drive' not in config.programs
+    assert config.order(['motor'], 'real') == ['joy', 'motor']
     controller = Controller(config)
     window = MainWindow(controller)
     window.show()
@@ -99,4 +101,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    with tempfile.TemporaryDirectory() as directory:
+        main(Path(directory)/'local.yaml')

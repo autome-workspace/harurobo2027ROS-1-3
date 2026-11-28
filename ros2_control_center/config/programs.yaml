@@ -1,11 +1,11 @@
 settings:
   setup: [/opt/ros/jazzy/setup.bash]
   domains: {real: 53, simulation: 87, demo: 88}
-  variables: {LIDAR_PORT: '', IMU_PORT: '', CAMERA_PORT: '', CAMERA_CALIBRATION: '', APPROACH_SETTINGS: '', CAMERA_WIDTH: 640, CAMERA_HEIGHT: 480, CAMERA_FPS: 30.0, CAMERA_CALIBRATIONS: {}, BALL_DETECTOR_CONFIG: ''}
+  variables: {LIDAR_PORT: '', IMU_PORT: '', CAMERA_PORT: '', CAMERA_CALIBRATION: '', APPROACH_SETTINGS: '', CAMERA_WIDTH: 640, CAMERA_HEIGHT: 480, CAMERA_FPS: 30.0, CAMERA_CALIBRATIONS: {}, BALL_DETECTOR_CONFIG: '', MOTOR_AUTO_APPROACH: false, MOTOR_ENCODER_DISTANCE: false, ENCODER_CAN_INTERFACE: slcan0, ENCODER_CAN_PORT: ''}
 programs:
   - id: motor
     name: 足回り駆動
-    conflicts_with: [auto_drive, camera_lidar_calibration]
+    conflicts_with: [camera_lidar_calibration]
     modes: [real]
     nodes: [/harurobo_manual_drive]
     explicit: true
@@ -13,6 +13,21 @@ programs:
     setup: [real/manual_drive/install/setup.bash]
     command: [/usr/bin/python3, -u, ros2_control_center/core/manual_drive_session.py]
     depends_on: [joy]
+    requires_can: true
+    distance_variable: MOTOR_ENCODER_DISTANCE
+    distance:
+      setup: [install/setup.bash, real/manual_drive/install/setup.bash]
+      command: [/usr/bin/python3, -u, ros2_control_center/core/manual_drive_session.py, --encoder-distance]
+      depends_on: [joy, encoders, imu]
+      confirmation: 指定距離とエンコーダー方向、周囲と物理非常停止を確認してください。L1保持＋十字キーで指定距離移動を開始します。
+    automatic_variable: MOTOR_AUTO_APPROACH
+    automatic:
+      setup: [install/setup.bash, real/manual_drive/install/setup.bash]
+      command: [/usr/bin/python3, -u, ros2_control_center/core/integrated_drive_session.py, '{APPROACH_SETTINGS}']
+      requires_file: APPROACH_SETTINGS
+      depends_on: [joy, camera, lidar]
+      expected_topics: [/ball/state, /ball/estimate, /control_center/approach_cmd_vel]
+      confirmation: 周囲と物理非常停止、カメラの固定と較正を確認してください。足回り駆動を開始します。L1中立で押し直し、△で自動接近、○・L1解除で中止します。
     expected_stdout: 'READY: continuous drive.'
     stdout_prefix: true
   - id: can
@@ -46,6 +61,23 @@ programs:
     requires_device: IMU_PORT
     nodes: [/harurobo_imu]
     expected_topics: [/imu/data]
+  - id: encoders
+    name: AMT102 エンコーダー（2台）
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [ros2, run, amt102_can, encoder_node, --ros-args, --params-file, real/src/amt102_can/config/encoders.yaml]
+    parameters: {interface: ENCODER_CAN_INTERFACE}
+    nodes: [/amt102_encoders]
+    expected_topics: [/encoders/state]
+  - id: encoder_view
+    name: RViz2（エンコーダー）
+    modes: [real]
+    setup: [install/setup.bash]
+    command: [ros2, launch, amt102_can, view.launch.py]
+    depends_on: [encoders]
+    dependency_readiness: process
+    nodes: [/amt102_encoder_view, /encoders_rviz]
+    expected_topics: [/encoders/markers]
   - id: camera
     name: USB カメラ
     modes: [real]
@@ -65,28 +97,6 @@ programs:
     nodes: [/ball_detector]
     expected_topics: [/ball/detection]
     depends_on: [camera]
-  - id: approach
-    name: ボール自動接近（非駆動確認）
-    conflicts_with: [camera_lidar_calibration]
-    modes: [real]
-    setup: [install/setup.bash]
-    command: [/usr/bin/python3, -u, ros2_control_center/core/approach_session.py, '{APPROACH_SETTINGS}']
-    requires_file: APPROACH_SETTINGS
-    nodes: [/approach_controller, /ball_localizer, /control_center_laser_mount, /control_center_camera_mount, /control_center_optical_mount]
-    expected_topics: [/ball/state, /ball/estimate, /control_center/approach_cmd_vel]
-    depends_on: [detector, joy, lidar]
-  - id: auto_drive
-    name: 自動接近・実機駆動
-    modes: [real]
-    explicit: true
-    confirmation: ボールの位置推定と停止距離を確認し、周囲と物理非常停止を確認してください。L1中立で押し直し後、△で自動接近を開始します。実機駆動を有効にしますか？
-    setup: [real/manual_drive/install/setup.bash]
-    command: [/usr/bin/python3, -u, ros2_control_center/core/manual_drive_session.py, --automatic]
-    conflicts_with: [motor]
-    nodes: [/harurobo_manual_drive]
-    depends_on: [approach]
-    expected_stdout: 'READY: continuous drive.'
-    stdout_prefix: true
   - id: camera_lidar_calibration
     name: カメラ・LiDAR 外部較正
     modes: [real]
@@ -95,7 +105,7 @@ programs:
     nodes: [/camera_lidar_calibration]
     expected_topics: [/camera_lidar/calibration/status]
     depends_on: [camera, lidar]
-    conflicts_with: [motor, approach, auto_drive, camera_lidar_projection]
+    conflicts_with: [motor, camera_lidar_projection]
   - id: camera_lidar_projection
     name: 較正済みLiDARの画像投影
     modes: [real]
@@ -126,11 +136,13 @@ programs:
     modes: [real]
     command: [rviz2, -d, ros2_control_center/config/control_center.rviz]
     nodes: [/rviz2]
+    depends_on: [lidar]
   - id: rviz_sim
     name: RViz2（シミュレーション）
     modes: [simulation]
-    command: [rviz2, --ros-args, -p, 'use_sim_time:=true']
+    command: [rviz2, -d, ros2_control_center/config/control_center.rviz, --ros-args, -p, 'use_sim_time:=true']
     nodes: [/rviz2]
+    depends_on: [gazebo]
   - id: demo_source
     name: デモ送信
     modes: [demo]

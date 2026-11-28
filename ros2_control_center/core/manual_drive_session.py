@@ -30,7 +30,12 @@ def stop_if_parent_dies():
         os.kill(os.getpid(), signal.SIGINT)
 
 
-def main(automatic=False):
+def main(automatic=False, encoder_distance=False):
+    if encoder_distance:
+        from encoder_distance import validate
+        import yaml
+        path = Path(os.environ.get('XDG_CONFIG_HOME', Path.home()/'.config'))/'ros2-control-center/encoder_distance.yaml'
+        validate(yaml.safe_load(path.read_text()))
     for value in (signal.SIGINT, signal.SIGTERM):
         signal.signal(value, request_stop)
     parent = os.getppid()
@@ -58,12 +63,20 @@ def main(automatic=False):
                     break
             time.sleep(.05)
         if not ready:
+            reader.seek(0)
+            details = reader.read().decode(errors='replace')
+            if 'Address already in use' in details:
+                raise RuntimeError('停止ウォッチドッグ用ポート55901が使用中です。'
+                                   '以前の停止監視が残っている可能性があります。'
+                                   '駆動と停止監視の状態を確認してください。')
             raise RuntimeError('停止ウォッチドッグを開始できませんでした。')
         if stopping or os.getppid() != parent:
             return 1
         command = ([sys.executable, '-u', str(Path(__file__).with_name('approach_drive.py'))]
                    if automatic else [sys.executable, '-u', str(SCRIPTS / 'manual_drive.py'),
                                       '--execute-powered-robot-estop-ready'])
+        if encoder_distance:
+            command = [sys.executable, '-u', str(Path(__file__).with_name('encoder_distance_drive.py'))]
         drive = subprocess.Popen(
             command,
             start_new_session=True, preexec_fn=stop_if_parent_dies,
@@ -106,7 +119,11 @@ if __name__ == '__main__':
     try:
         parser = argparse.ArgumentParser()
         parser.add_argument('--automatic', action='store_true')
-        sys.exit(main(parser.parse_args().automatic))
-    except (OSError, RuntimeError) as error:
+        parser.add_argument('--encoder-distance', action='store_true')
+        args = parser.parse_args()
+        if args.automatic and args.encoder_distance:
+            raise RuntimeError('自動接近とエンコーダー指定移動は同時に有効化できません。')
+        sys.exit(main(args.automatic, args.encoder_distance))
+    except (OSError, RuntimeError, ValueError) as error:
         print(f'ERROR: {error}', flush=True)
         sys.exit(1)

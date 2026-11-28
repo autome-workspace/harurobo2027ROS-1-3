@@ -74,6 +74,7 @@ class ApproachController(Node):
             ('camera_align_timeout', 4.), ('camera_align_max_speed', .03),
             ('camera_align_tolerance', .012), ('camera_align_settle_time', .20),
             ('auto_enabled', False), ('base_frame', 'base_link'),
+            ('require_camera_during_tracking', False),
         ])
         self.p = lambda name: self.get_parameter(name).value
         self.state = 'MANUAL'
@@ -195,6 +196,9 @@ class ApproachController(Node):
             return self.camera_align(now)
         est, detection = self.estimate, self.detection
         timeout = self.p('sensor_timeout')
+        if self.p('require_camera_during_tracking') and self.state in ('ALIGNING', 'APPROACHING'):
+            if not self.detection_ready(detection) or not self.stamped_fresh(detection.header.stamp, timeout):
+                return self.abort('camera ball lost or stale')
         fresh_estimate = (est is not None and est.valid and est.header.frame_id == self.p('base_frame')
                           and self.stamped_fresh(est.header.stamp, timeout))
         if self.state == 'DETECTING':

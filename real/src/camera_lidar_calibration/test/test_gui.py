@@ -40,6 +40,17 @@ def test_gui_commands_settings_and_disconnect():
     assert window.table.rowCount() == 1
     assert window.buttons['サンプル取得'].isEnabled()
     assert not window.buttons['TFへ反映'].isEnabled()
+    window.sector_enabled.setChecked(True)
+    window.sector_center.setValue(180.)
+    window.sector_width.setValue(180.)
+    window.sector_button.click()
+    assert worker.commands.get_nowait() == {'action': 'lidar_sector', 'values': {
+        'lidar_sector_enabled': True, 'lidar_sector_center_deg': 180., 'lidar_sector_width_deg': 180.}}
+    window.min_points_input.setValue(3)
+    window.min_points_button.click()
+    assert worker.commands.get_nowait() == {'action': 'lidar_min_points', 'values': {'min_points': 3}}
+    window.five_button.click()
+    assert worker.commands.get_nowait() == {'action': 'sample_preset', 'preset': 'five'}
     window.stability_duration.setValue(.4)
     window.stability_position.setValue(10.)
     window.stability_pixels.setValue(4.)

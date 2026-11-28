@@ -309,3 +309,101 @@ def test_lidar_preview_survives_missing_camera(tmp_path, monkeypatch):
     finally:
         node.destroy_node()
         rclpy.try_shutdown()
+
+
+def test_sample_preset_preserves_data_and_persists(tmp_path, monkeypatch):
+    import yaml
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
+    monkeypatch.setenv('ROS_DOMAIN_ID', '94')
+    rclpy.init(args=[])
+    node = CalibrationNode()
+    try:
+        samples = [{'id': i+1, 'role': 'validation' if i == 4 else 'train',
+                    'xyz': [.3+i*.05, .1, 0.], 'uv': [320., 240.]} for i in range(5)]
+        node.collector.samples = samples.copy()
+        node.collector.auto = True
+        node.result = {'valid': True}
+        original = node.settings.copy()
+        node.command(String(data=json.dumps({'action': 'sample_preset', 'preset': 'five'})))
+        assert node.collector.samples == samples
+        assert node.collector.settings is node.settings
+        assert not node.collector.auto and node.result is None
+        assert node.settings['min_train_samples'] == 4
+        assert node.settings['min_validation_samples'] == 1
+        assert node.settings['max_rms_pixels'] == original['max_rms_pixels']
+        assert node.settings['min_hull_area'] == original['min_hull_area']
+        stored = yaml.safe_load((tmp_path/'camera-lidar-calibration/settings.yaml').read_text())
+        assert stored == node.settings
+        node.tf_active = lambda: True
+        node.command(String(data=json.dumps({'action': 'sample_preset', 'preset': 'standard'})))
+        assert node.settings['min_train_samples'] == 4
+        node.tf_active = lambda: False
+        node.command(String(data=json.dumps({'action': 'sample_preset', 'preset': 'standard'})))
+        assert node.settings['min_train_samples'] == 12
+        assert node.settings['min_validation_samples'] == 4
+        assert node.collector.samples == samples
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+def test_sector_settings_preserve_samples_and_reset_live_selection(tmp_path, monkeypatch):
+    import yaml
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
+    monkeypatch.setenv('ROS_DOMAIN_ID', '94')
+    rclpy.init(args=[])
+    node = CalibrationNode()
+    try:
+        sample = {'id': 1, 'role': 'train', 'xyz': [-.5, 0., 0.], 'uv': [320., 240.]}
+        node.collector.samples = [sample]
+        node.collector.auto = True
+        node.collector.history.append({'example': True})
+        node.collector.latest = {'example': True}
+        node.manual_selection = True
+        node.selected_center = np.array([.5, 0., 0.])
+        node.result = {'valid': True}
+        changes = {'lidar_sector_enabled': True, 'lidar_sector_center_deg': 180.,
+                   'lidar_sector_width_deg': 180.}
+        node.command(String(data=json.dumps({'action': 'lidar_sector', 'values': changes})))
+        assert node.collector.samples == [sample]
+        assert node.collector.latest is None and not node.collector.history
+        assert node.result is None and not node.collector.auto
+        assert node.selected_center is None and not node.manual_selection
+        stored = yaml.safe_load((tmp_path/'camera-lidar-calibration/settings.yaml').read_text())
+        assert all(stored[key] == value for key, value in changes.items())
+        node.command(String(data=json.dumps({'action': 'lidar_min_points', 'values': {'min_points': 3}})))
+        assert node.settings['min_points'] == 3
+        assert node.collector.samples == [sample]
+        stored = yaml.safe_load((tmp_path/'camera-lidar-calibration/settings.yaml').read_text())
+        assert stored['min_points'] == 3
+        node.tf_active = lambda: True
+        node.command(String(data=json.dumps({'action': 'lidar_sector',
+                                            'values': changes | {'lidar_sector_enabled': False}})))
+        assert node.settings['lidar_sector_enabled']
+        node.tf_active = lambda: False
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()
+
+
+def test_failed_solve_clears_previous_result(tmp_path, monkeypatch):
+    import camera_lidar_calibration.calibration_node as module
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
+    monkeypatch.setenv('ROS_DOMAIN_ID', '94')
+    rclpy.init(args=[])
+    node = CalibrationNode()
+    try:
+        node.camera = object()
+        node.result = {'valid': True}
+        samples = [{'id': 1, 'role': 'train', 'xyz': [-.5, 0., 0.], 'uv': [320., 240.]}]
+        node.collector.samples = samples
+        def fail(*args):
+            raise ValueError('対応点の誤差が上限超過')
+        monkeypatch.setattr(module, 'solve', fail)
+        node.command(String(data=json.dumps({'action': 'solve'})))
+        assert node.result is None
+        assert node.collector.samples == samples
+        assert '対応点の誤差' in node.message
+    finally:
+        node.destroy_node()
+        rclpy.try_shutdown()

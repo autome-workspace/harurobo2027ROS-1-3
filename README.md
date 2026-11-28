@@ -13,4 +13,4 @@
 
 作業時は、変更した設定、確認に使った機材と手順、結果、残作業を [引き継ぎ記録](docs/handover.md)に追記する。
 
-最新の作業まとめ: [2026-11-27 開発記録](docs/progress-2026-11-27.md)。カメラ・LiDAR外部較正の手順は[専用パッケージ](real/src/camera_lidar_calibration/README.md)を参照。
+最新の作業まとめ: [2026-11-28 開発記録](docs/progress-2026-11-28.md)。AMT102-CAN受信、指定距離PID移動、横ずれ補正、GUI・較正の改善を記録しています。[エンコーダー受信](real/src/amt102_can/README.md)、[Control Center](ros2_control_center/README.md)、[カメラ・LiDAR外部較正](real/src/camera_lidar_calibration/README.md)に詳しい手順があります。

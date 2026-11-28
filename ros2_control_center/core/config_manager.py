@@ -30,7 +30,8 @@ class Config:
             raise ValueError('ROS ドメインは互いに異なる 0–101 の整数にしてください。Gazebo は 87 固定です。')
         self.setup = settings['setup'] + local.get('setup', [])
         rows = shared['programs']
-        self.programs = {row['id']: row for row in rows}
+        self.templates = {row['id']: row for row in rows}
+        self.apply_variants()
         if len(self.programs) != len(rows):
             raise ValueError('プログラム ID が重複しています。')
         for key, row in self.programs.items():
@@ -42,6 +43,10 @@ class Config:
                 self.order([key], mode)
 
     def save_variables(self, changes):
+        if 'MOTOR_ENCODER_DISTANCE' in changes and type(changes['MOTOR_ENCODER_DISTANCE']) is not bool:
+            raise ValueError('指定距離移動の有効設定はtrueまたはfalseで指定してください。')
+        if 'MOTOR_AUTO_APPROACH' in changes and type(changes['MOTOR_AUTO_APPROACH']) is not bool:
+            raise ValueError('自動接近の有効設定はtrueまたはfalseで指定してください。')
         local = yaml.safe_load(self.path.read_text()) if self.path.exists() else {}
         local = local or {}
         local['variables'] = local.get('variables', {}) | changes
@@ -57,8 +62,22 @@ class Config:
                 temporary.unlink(missing_ok=True)
         self.variables = self.shared_variables | local['variables']
         self.variables_revision = self.path.stat().st_mtime_ns
+        self.apply_variants()
+
+    def apply_variants(self):
+        if type(self.variables.get('MOTOR_ENCODER_DISTANCE', False)) is not bool:
+            raise ValueError('指定距離移動の有効設定はtrueまたはfalseで指定してください。')
+        if type(self.variables.get('MOTOR_AUTO_APPROACH', False)) is not bool:
+            raise ValueError('自動接近の有効設定はtrueまたはfalseで指定してください。')
+        if self.variables.get('MOTOR_AUTO_APPROACH') and self.variables.get('MOTOR_ENCODER_DISTANCE'):
+            raise ValueError('自動接近と指定距離移動は同時に有効化できません。')
+        self.programs = {key: row | (row.get('distance', {}) if
+                         self.variables.get(row.get('distance_variable'), False) else {}) | (row.get('automatic', {}) if
+                         self.variables.get(row.get('automatic_variable'), False) else {})
+                         for key, row in self.templates.items()}
 
     def order(self, ids, mode):
+        self.refresh_variables()
         ordered = []
 
         def visit(key, visiting):
@@ -104,6 +123,7 @@ class Config:
             local = yaml.safe_load(self.path.read_text()) if self.path.exists() else {}
             self.variables = self.shared_variables | (local or {}).get('variables', {})
             self.variables_revision = revision
+            self.apply_variants()
 
     def command(self, key):
         self.refresh_variables()
